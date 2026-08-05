@@ -30,6 +30,7 @@ services:
       - ./utils:/app/utils
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
+      - ./tests:/app/tests
       - document_storage:/app/document_storage
     ports:
       - "127.0.0.1:8001:8000"
@@ -49,16 +50,19 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      target: prod
+      target: ${FRONTEND_TARGET:-dev}
       args:
         - NEXTAUTH_URL=${NEXTAUTH_URL}
         - NEXTAUTH_SECRET=${NEXTAUTH_SECRET}
         - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
         - NEXT_PUBLIC_BASE_PATH=${NEXT_PUBLIC_BASE_PATH:-}
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
     ports:
       - "127.0.0.1:3001:3000"
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=${NODE_ENV:-development}
     env_file:
       - .env
     depends_on:

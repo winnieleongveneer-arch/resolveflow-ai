@@ -42,6 +42,9 @@ from .routers import (
     examples_router,
     health_router,
     items_router,
+    policies_router,
+    policy_evaluations_router,
+    runs_router,
 )
 from .security import get_current_user, verify_access
 
@@ -153,6 +156,15 @@ api_router.include_router(items_router)
 
 # Authorization pattern examples
 api_router.include_router(examples_router)
+
+# -----------------------------------------------------------------------
+# ResolveFlow NEXUS — Service Desk Command Center
+# -----------------------------------------------------------------------
+# AI Policies engine: rules evaluated BEFORE an external action executes.
+api_router.include_router(policies_router)
+api_router.include_router(policy_evaluations_router)
+# Agent runs and the live Operator trace.
+api_router.include_router(runs_router)
 
 
 # =============================================================================

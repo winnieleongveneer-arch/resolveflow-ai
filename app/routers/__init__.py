@@ -1,4 +1,3 @@
-# app/routers/__init__.py
 """
 API Routers - Modular endpoint organization.
 
@@ -11,6 +10,9 @@ from .auth import router as auth_router
 from .examples import router as examples_router
 from .health import router as health_router
 from .items import router as items_router
+from .policies import eval_router as policy_evaluations_router
+from .policies import router as policies_router
+from .runs import router as runs_router
 
 __all__ = [
     "health_router",
@@ -19,4 +21,8 @@ __all__ = [
     "audit_router",
     "items_router",
     "examples_router",
+    # ResolveFlow NEXUS
+    "policies_router",
+    "policy_evaluations_router",
+    "runs_router",
 ]

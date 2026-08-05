@@ -1,0 +1,27 @@
+# Normalise all text files to LF in the repository.
+# Prevents Windows CRLF from breaking shell scripts inside Linux containers
+# (a CRLF shebang makes the interpreter "not found" -> container exit code 127).
+* text=auto eol=lf
+
+# Scripts that MUST be LF — they execute inside Linux containers.
+*.sh        text eol=lf
+*.bash      text eol=lf
+Dockerfile  text eol=lf
+*.Dockerfile text eol=lf
+entrypoint* text eol=lf
+
+# Windows-only scripts keep CRLF.
+*.ps1       text eol=crlf
+*.bat       text eol=crlf
+*.cmd       text eol=crlf
+
+# Binary — never convert.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.xlsx binary
+*.woff binary
+*.woff2 binary
