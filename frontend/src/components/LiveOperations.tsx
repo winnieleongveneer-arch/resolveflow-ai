@@ -165,8 +165,14 @@ export function LiveOperations() {
                   animate={{ opacity: 1 }}
                   className='flex items-center justify-between gap-3 py-2.5'
                 >
+                  {/* whole row links to the Decision Passport */}
                   <div className='min-w-0'>
-                    <p className='font-mono text-sm font-medium'>{run.issue_key}</p>
+                    <Link
+                      href={`/runs/${run.id}`}
+                      className='font-mono text-sm font-medium hover:text-brand-cornflower hover:underline'
+                    >
+                      {run.issue_key}
+                    </Link>
                     <p className='truncate text-xs text-muted-foreground'>
                       {run.started_at ? new Date(run.started_at).toLocaleString() : '—'}
                     </p>

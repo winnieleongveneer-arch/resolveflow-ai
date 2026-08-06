@@ -41,7 +41,7 @@ from ..schemas.service_desk import (
     RunCreate,
     RunOut,
 )
-from ..services import auto_client, integrations
+from ..services import auto_client, integrations, passport
 
 log = logging.getLogger(__name__)
 
@@ -367,3 +367,16 @@ def inspect_auto_workflow(workflow_id: Optional[str] = None):
             out[label] = {"ok": False,
                           "error": auto_client.redact(str(exc))[:400]}
     return out
+
+
+@router.get("/runs/{run_id}/passport")
+def decision_passport(run_id: UUID, db: Session = Depends(get_db)):
+    """
+    The Decision Passport for one run — readable in the Command Center and
+    exportable as JSON. Every field is read from persisted rows; nothing is
+    generated prose without an evidence reference behind it.
+    """
+    doc = passport.build(db, run_id)
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return doc
