@@ -41,7 +41,7 @@ from ..schemas.service_desk import (
     RunCreate,
     RunOut,
 )
-from ..services import auto_client, integrations, passport
+from ..services import auto_client, integrations, maintenance, passport
 
 log = logging.getLogger(__name__)
 
@@ -496,3 +496,15 @@ def execute_matrix(issue_key: str = "ITSM-2211"):
 def auto_support_bundle(issue_key: str = "ITSM-2211"):
     """Credential-free diagnostic bundle for the Supervity execution 500."""
     return auto_client.support_bundle(issue_key)
+
+
+@router.post("/maintenance")
+def run_maintenance(dry_run: bool = True, db: Session = Depends(get_db)):
+    """
+    Find and optionally correct data-integrity problems.
+
+    Defaults to a dry run. Nothing is ever deleted: duplicates are expired or
+    cancelled with a maintenance note and impossible states are corrected, so
+    the audit trail survives and repeat runs are safe.
+    """
+    return maintenance.run(db, dry_run=dry_run)
