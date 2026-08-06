@@ -147,8 +147,16 @@ def create_run(payload: RunCreate, db: Session = Depends(get_db)):
                 event_type="AUTO_INVOKE_FAILED", event_status="error",
                 sequence=2, payload={"detail": auto_client.redact(str(exc))},
             ))
-            integrations.record_failure(db, "supervity_auto",
-                                        auto_client.redact(str(exc)))
+            # Reads against Auto succeed (that is how the Orchestrator was
+            # discovered); only workflow execution is failing. Report that
+            # precisely instead of marking the whole integration dead.
+            integrations.record_degraded(
+                db, "supervity_auto",
+                "Authenticated reads succeed (GET /api/v1/workflows). "
+                "POST /api/v1/workflow-runs/execute returns HTTP 500 for every "
+                "payload shape tried — platform-side. Trigger the Orchestrator "
+                "from the Auto UI as a fallback. Detail: "
+                + auto_client.redact(str(exc))[:200])
         db.commit()
         db.refresh(run)
 

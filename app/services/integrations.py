@@ -129,6 +129,21 @@ def record_write(db: Session, key: str, count: int = 1) -> None:
     db.commit()
 
 
+def record_degraded(db: Session, key: str, detail: str) -> None:
+    """
+    Partial failure: the integration is reachable and authenticating, but one
+    capability is broken. Distinct from UNHEALTHY, which means we cannot talk
+    to it at all. Conflating the two hides which half works.
+    """
+    row = get_row(db, key)
+    if row is None:
+        return
+    row.status = IntegrationStatus.DEGRADED
+    row.latest_error = _redact(detail)
+    row.last_health_check = _now()
+    db.commit()
+
+
 def record_failure(db: Session, key: str, error: str) -> None:
     row = get_row(db, key)
     if row is None:

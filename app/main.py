@@ -42,6 +42,7 @@ from .routers import (
     examples_router,
     health_router,
     items_router,
+    insights_router,
     integrations_router,
     policies_router,
     policy_evaluations_router,
@@ -174,6 +175,8 @@ api_router.include_router(policy_gate_router)
 api_router.include_router(workbench_router)
 # Data Manager: live integration registry and health.
 api_router.include_router(integrations_router)
+# AI Insights derived from real processed data.
+api_router.include_router(insights_router)
 
 
 # =============================================================================
