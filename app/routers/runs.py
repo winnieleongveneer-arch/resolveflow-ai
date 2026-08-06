@@ -18,6 +18,7 @@ fabricated ``auto_run_id`` would misrepresent a live integration.
 """
 
 import logging
+import os
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID
@@ -40,6 +41,7 @@ from ..schemas.service_desk import (
     RunCreate,
     RunOut,
 )
+from ..services import auto_client, integrations
 
 log = logging.getLogger(__name__)
 
@@ -92,7 +94,66 @@ def create_run(payload: RunCreate, db: Session = Depends(get_db)):
     )
     db.commit()
 
-    log.info("Run %s created for %s", run.id, run.issue_key)
+    # ---- invoke the Supervity Auto Orchestrator --------------------------
+    # POST /api/v1/workflow-runs/execute {workflowId, inputs}
+    # auto_run_id is written ONLY if Auto actually returns one. A missing id
+    # is recorded as an error, never invented.
+    if os.getenv("AUTO_TRIGGER_ON_RUN", "true").lower() == "true":
+        try:
+            result = auto_client.execute_workflow(
+                inputs={
+                    "issue_key": payload.issue_key,
+                    "run_id": str(run.id),
+                    "trigger_source": payload.trigger_source,
+                    # Where the Orchestrator calls back for the policy verdict.
+                    "policy_gate_url": (
+                        os.getenv("PUBLIC_BACKEND_URL", "").rstrip("/")
+                        + "/api/agent/gate"
+                    ),
+                    **(payload.trigger_payload or {}),
+                }
+            )
+            auto_run_id = auto_client.extract_run_id(result.get("response"))
+            run.auto_run_id = auto_run_id
+            run.status = RunStatus.CONTEXTUALISING
+            run.current_stage = "CONTEXTUALISING"
+            db.add(OperatorEvent(
+                run_id=run.id,
+                operator_name="ORCHESTRATOR",
+                event_type="AUTO_INVOKED",
+                event_status="ok" if auto_run_id else "no_run_id",
+                sequence=2,
+                duration_ms=int(result.get("latency_ms") or 0),
+                payload={
+                    "workflow_id": auto_client.orchestrator_id(),
+                    "auto_run_id": auto_run_id,
+                },
+            ))
+            integrations.record_write(db, "supervity_auto", 1)
+        except auto_client.AutoNotConfigured as exc:
+            run.error_message = str(exc)
+            db.add(OperatorEvent(
+                run_id=run.id, operator_name="ORCHESTRATOR",
+                event_type="AUTO_NOT_CONFIGURED", event_status="skipped",
+                sequence=2, payload={"detail": str(exc)},
+            ))
+            log.warning("Auto not configured; run %s persisted without it.", run.id)
+        except auto_client.AutoError as exc:
+            run.status = RunStatus.FAILED
+            run.current_stage = "FAILED"
+            run.error_message = auto_client.redact(str(exc))
+            db.add(OperatorEvent(
+                run_id=run.id, operator_name="ORCHESTRATOR",
+                event_type="AUTO_INVOKE_FAILED", event_status="error",
+                sequence=2, payload={"detail": auto_client.redact(str(exc))},
+            ))
+            integrations.record_failure(db, "supervity_auto",
+                                        auto_client.redact(str(exc)))
+        db.commit()
+        db.refresh(run)
+
+    log.info("Run %s created for %s (auto_run_id=%s)",
+             run.id, run.issue_key, run.auto_run_id)
     return run
 
 
@@ -202,3 +263,99 @@ def append_run_event(
     db.commit()
     db.refresh(event)
     return event
+
+
+# ---------------------------------------------------------------------------
+# Supervity Auto diagnostics
+# ---------------------------------------------------------------------------
+
+
+@router.get("/auto/diagnose")
+def diagnose_auto(org: Optional[str] = None, db: Session = Depends(get_db)):
+    """
+    Work out which x-active-org value the Auto API accepts.
+
+    The docs require the header on every endpoint but never say where the
+    value comes from, so this probes the plausible candidates and reports the
+    evidence rather than guessing.
+    """
+    candidates = []
+    if org:
+        candidates.append(org)
+    for c in [
+        os.getenv("SUPERVITY_ORG_KEY", "").strip(),
+        "",
+        "alpha",
+        "winnieleongveneer_gm",
+        os.getenv("SUPERVITY_WORKSPACE_ID", "").strip(),
+    ]:
+        if c not in candidates:
+            candidates.append(c)
+    return auto_client.diagnose_org_keys(candidates)
+
+
+@router.get("/auto/workflows")
+def list_auto_workflows(org: Optional[str] = None):
+    """
+    List the workflows this API key can see, so the Orchestrator's UUID can be
+    copied into SUPERVITY_ORCHESTRATOR_ID without hunting through editor URLs.
+    """
+    try:
+        payload, latency = auto_client.list_workflows(
+            limit=100, org_override=org if org is not None else None
+        )
+        items = payload.get("workflows", []) if isinstance(payload, dict) else []
+        return {
+            "count": len(items),
+            "latency_ms": round(latency, 1),
+            "workflows": [
+                {"id": w.get("id"), "name": w.get("name"),
+                 "description": w.get("description")}
+                for w in items
+            ],
+        }
+    except auto_client.AutoNotConfigured as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except auto_client.AutoError as exc:
+        raise HTTPException(status_code=502,
+                            detail=auto_client.redact(str(exc)))
+
+
+@router.get("/auto/diagnose-auth")
+def diagnose_auto_auth(path: str = "/api/v1/workflows"):
+    """Try every documented credential transport and report what Auto says."""
+    return auto_client.diagnose_auth(path)
+
+
+@router.post("/auto/probe-execute")
+def probe_auto_execute(issue_key: str = "PROBE-0001"):
+    """Find which `inputs` shape POST /workflow-runs/execute accepts."""
+    return auto_client.probe_execute_shapes(issue_key=issue_key)
+
+
+@router.get("/auto/inspect")
+def inspect_auto_workflow(workflow_id: Optional[str] = None):
+    """
+    Read-only inspection of the Orchestrator: its detail record and its
+    version history. If there is no default/published version, that explains
+    a 500 from /workflow-runs/execute.
+    """
+    wf = (workflow_id or auto_client.orchestrator_id()).strip()
+    out = {"workflow_id": wf}
+    for label, path in (
+        ("detail", f"/api/v1/workflows/{wf}"),
+        ("versions", f"/api/v1/workflows/{wf}/versions"),
+        ("upcoming_runs", f"/api/v1/workflows/{wf}/upcoming-runs"),
+        ("recent_runs", "/api/v1/workflow-runs"),
+    ):
+        try:
+            params = {"workflowId": wf, "limit": 5} if label == "recent_runs" else None
+            payload, latency = auto_client._request(
+                "GET", path, params=params, retries=1
+            )
+            out[label] = {"ok": True, "latency_ms": round(latency, 1),
+                          "data": payload}
+        except Exception as exc:
+            out[label] = {"ok": False,
+                          "error": auto_client.redact(str(exc))[:400]}
+    return out

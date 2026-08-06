@@ -42,9 +42,12 @@ from .routers import (
     examples_router,
     health_router,
     items_router,
+    integrations_router,
     policies_router,
     policy_evaluations_router,
+    policy_gate_router,
     runs_router,
+    workbench_router,
 )
 from .security import get_current_user, verify_access
 
@@ -165,6 +168,12 @@ api_router.include_router(policies_router)
 api_router.include_router(policy_evaluations_router)
 # Agent runs and the live Operator trace.
 api_router.include_router(runs_router)
+# The policy gate Operators call before any external side effect.
+api_router.include_router(policy_gate_router)
+# Human decision queue.
+api_router.include_router(workbench_router)
+# Data Manager: live integration registry and health.
+api_router.include_router(integrations_router)
 
 
 # =============================================================================

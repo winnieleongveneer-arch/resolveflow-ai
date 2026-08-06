@@ -10,9 +10,12 @@ from .auth import router as auth_router
 from .examples import router as examples_router
 from .health import router as health_router
 from .items import router as items_router
+from .integrations import router as integrations_router
 from .policies import eval_router as policy_evaluations_router
 from .policies import router as policies_router
 from .runs import router as runs_router
+from .workbench import gate_router as policy_gate_router
+from .workbench import router as workbench_router
 
 __all__ = [
     "health_router",
@@ -25,4 +28,7 @@ __all__ = [
     "policies_router",
     "policy_evaluations_router",
     "runs_router",
+    "workbench_router",
+    "policy_gate_router",
+    "integrations_router",
 ]

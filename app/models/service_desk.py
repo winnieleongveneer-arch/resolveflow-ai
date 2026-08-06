@@ -361,6 +361,14 @@ class WorkbenchItem(Base):
     # Where the Slack escalation landed, for the audit trail.
     notification_ref = Column(String(512), nullable=True)
 
+    # Supervity Auto handle for the paused review step. Answering the user
+    # form at POST /api/v1/user-forms/{activityRunId}/{approve|reject} is what
+    # signals the workflow to resume, so this is how a Command Center decision
+    # continues the SAME Auto run rather than starting a new one.
+    auto_activity_run_id = Column(String(255), nullable=True, index=True)
+    auto_form_id = Column(String(255), nullable=True)
+    auto_resume_result = Column(JSONB, nullable=True)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     decided_at = Column(DateTime(timezone=True), nullable=True)
 

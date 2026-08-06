@@ -135,3 +135,125 @@ class PolicyEvaluationOut(BaseModel):
     proposed_action: Optional[Dict[str, Any]] = None
     is_simulation: bool
     evaluated_at: Optional[datetime] = None
+
+
+# ---------------------------------------------------------------- workbench
+
+
+class WorkbenchItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    run_id: UUID
+    issue_key: str
+    status: str
+    request_type: str
+    case_context: Dict[str, Any]
+    proposed_action: Dict[str, Any]
+    policy_result: Optional[Dict[str, Any]] = None
+    agent_recommendation: Optional[str] = None
+    verification_plan: Optional[Dict[str, Any]] = None
+    rollback_plan: Optional[Dict[str, Any]] = None
+    human_decision: Optional[str] = None
+    modified_action: Optional[Dict[str, Any]] = None
+    approved_scope: Optional[Dict[str, Any]] = None
+    reviewer: Optional[str] = None
+    reviewer_notes: Optional[str] = None
+    notification_ref: Optional[str] = None
+    auto_activity_run_id: Optional[str] = None
+    auto_form_id: Optional[str] = None
+    auto_resume_result: Optional[Dict[str, Any]] = None
+    created_at: Optional[datetime] = None
+    decided_at: Optional[datetime] = None
+
+
+class WorkbenchItemCreate(BaseModel):
+    run_id: UUID
+    issue_key: str
+    request_type: str = Field(..., examples=["MAJOR_INCIDENT"])
+    case_context: Dict[str, Any] = {}
+    proposed_action: Dict[str, Any] = {}
+    policy_result: Optional[Dict[str, Any]] = None
+    agent_recommendation: Optional[str] = None
+    verification_plan: Optional[Dict[str, Any]] = None
+    rollback_plan: Optional[Dict[str, Any]] = None
+    notify: bool = True
+
+
+class DecisionRequest(BaseModel):
+    """A human's Approve / Modify / Reject."""
+
+    decision: str = Field(..., examples=["APPROVE", "MODIFY", "REJECT"])
+    reviewer: str = Field(..., examples=["winnie"])
+    reviewer_notes: Optional[str] = None
+    # Required when decision == MODIFY.
+    modified_action: Optional[Dict[str, Any]] = None
+
+
+class DecisionResponse(BaseModel):
+    item_id: UUID
+    run_id: UUID
+    issue_key: str
+    status: str
+    human_decision: str
+    approved_scope: Optional[Dict[str, Any]] = None
+    run_status: str
+    message: str
+
+
+# --------------------------------------------------------------- policy gate
+
+
+class GateRequest(BaseModel):
+    """
+    The call an Operator makes before performing an external action.
+
+    Evaluates the policy, records the verdict, and — when the verdict is
+    REQUIRE_HUMAN_REVIEW — creates a Workbench item and sends the Slack
+    escalation in one step.
+    """
+
+    run_id: UUID
+    policy_key: str = Field(..., examples=["major_incident_declaration"])
+    issue_key: str
+    context: Dict[str, Any]
+    proposed_action: Dict[str, Any] = {}
+    case_context: Dict[str, Any] = {}
+    agent_recommendation: Optional[str] = None
+    verification_plan: Optional[Dict[str, Any]] = None
+    rollback_plan: Optional[Dict[str, Any]] = None
+    request_type: str = "RISKY_REMEDIATION"
+    notify: bool = True
+
+
+class GateResponse(BaseModel):
+    verdict: str
+    policy_key: str
+    policy_version: int
+    reasons: List[str]
+    missing_fields: List[str] = []
+    may_execute: bool
+    workbench_item_id: Optional[UUID] = None
+    notification: Optional[Dict[str, Any]] = None
+
+
+# -------------------------------------------------------------- integrations
+
+
+class IntegrationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    integration_key: str
+    integration_name: str
+    category: str
+    purpose: Optional[str] = None
+    status: str
+    credentials_configured: bool
+    last_health_check: Optional[datetime] = None
+    last_successful_read: Optional[datetime] = None
+    last_successful_write: Optional[datetime] = None
+    latency_ms: Optional[float] = None
+    records_processed: int
+    latest_error: Optional[str] = None
+    used_by_operators: Optional[Any] = None

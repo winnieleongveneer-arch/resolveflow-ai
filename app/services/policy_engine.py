@@ -228,6 +228,246 @@ def evaluate_major_incident_declaration(
 
 
 # ---------------------------------------------------------------------------
+# POLICY 2 — Safe Auto-Remediation
+# ---------------------------------------------------------------------------
+
+
+def evaluate_safe_auto_remediation(
+    context: Dict[str, Any], config: Dict[str, Any]
+) -> PolicyResult:
+    """
+    May the agent apply this fix on its own?
+
+    This is the autonomy dial. Every condition below is a reason a human
+    would want to be asked, and each one is editable without code.
+
+    Expected context
+    ----------------
+    confidence          float 0..1  RF-03's confidence in the proposed fix
+    kb_auto_safe        bool        Knowledge_Base.x_auto_safe for the matched article
+    is_reopened         bool        Issues.x_reopened
+    in_major_incident   bool        ticket belongs to an unresolved major incident
+    reversible          bool        the action can be undone
+    production_impact   bool        the action touches production
+    required_fields_complete bool   no evidence was missing upstream
+    """
+    _require(context, "confidence", "kb_auto_safe", "reversible")
+
+    confidence = _num(context["confidence"], "confidence")
+    kb_auto_safe = bool(context["kb_auto_safe"])
+    reversible = bool(context["reversible"])
+    is_reopened = bool(context.get("is_reopened", False))
+    in_major = bool(context.get("in_major_incident", False))
+    production = bool(context.get("production_impact", False))
+    complete = bool(context.get("required_fields_complete", True))
+
+    min_conf = float(config.get("minimum_confidence", 0.85))
+    require_kb = bool(config.get("require_kb_auto_safe", True))
+    block_reopened = bool(config.get("block_if_reopened", True))
+    block_major = bool(config.get("block_if_major_incident", True))
+    require_reversible = bool(config.get("require_reversible", True))
+    block_production = bool(config.get("block_if_production_impact", True))
+
+    reasons: List[str] = []
+
+    # --- hard denials ------------------------------------------------------
+    if require_kb and not kb_auto_safe:
+        reasons.append(
+            "The matched knowledge base article is not marked auto-safe "
+            "(x_auto_safe = false)."
+        )
+        reasons.append(
+            "Only fixes a knowledge author has explicitly cleared may run "
+            "unattended."
+        )
+        return PolicyResult(verdict=Verdict.DENY, reasons=reasons)
+
+    if require_reversible and not reversible:
+        reasons.append("The proposed action is not reversible.")
+        reasons.append(
+            "An irreversible action is never taken autonomously, whatever the "
+            "confidence."
+        )
+        return PolicyResult(verdict=Verdict.DENY, reasons=reasons)
+
+    # --- human review ------------------------------------------------------
+    if not complete:
+        reasons.append("Required case evidence was incomplete.")
+        reasons.append(
+            "The agent will not act on a partial picture. Routed for a human "
+            "to supply what is missing."
+        )
+        return PolicyResult(verdict=Verdict.REQUIRE_HUMAN_REVIEW, reasons=reasons)
+
+    if block_major and in_major:
+        reasons.append(
+            "This ticket belongs to an unresolved major incident."
+        )
+        reasons.append(
+            "Individual fixes during a live incident can mask the root cause "
+            "or conflict with the incident response. Routed to the incident "
+            "owner."
+        )
+        return PolicyResult(verdict=Verdict.REQUIRE_HUMAN_REVIEW, reasons=reasons)
+
+    if block_reopened and is_reopened:
+        reasons.append("This ticket has been reopened at least once.")
+        reasons.append(
+            "A previous fix did not hold, so repeating it automatically risks "
+            "repeating the failure. Routed for human judgement."
+        )
+        return PolicyResult(verdict=Verdict.REQUIRE_HUMAN_REVIEW, reasons=reasons)
+
+    if block_production and production:
+        reasons.append("The proposed action affects production.")
+        reasons.append(
+            "Production changes require a human decision under the current "
+            "autonomy settings."
+        )
+        return PolicyResult(verdict=Verdict.REQUIRE_HUMAN_REVIEW, reasons=reasons)
+
+    if confidence < min_conf:
+        reasons.append(
+            f"Confidence {confidence:.2f} is below the autonomy threshold of "
+            f"{min_conf:.2f}."
+        )
+        reasons.append(
+            "The evidence supports the fix but not strongly enough to apply it "
+            "unattended."
+        )
+        return PolicyResult(verdict=Verdict.REQUIRE_HUMAN_REVIEW, reasons=reasons)
+
+    # --- allow -------------------------------------------------------------
+    reasons.append(
+        f"Confidence {confidence:.2f} met the autonomy threshold of "
+        f"{min_conf:.2f}."
+    )
+    reasons.append("The matched knowledge base article is marked auto-safe.")
+    reasons.append("The action is reversible, so a failed fix can be rolled back.")
+    if not is_reopened:
+        reasons.append("The ticket has not been reopened before.")
+    if not in_major:
+        reasons.append("The ticket is not part of an unresolved major incident.")
+    reasons.append(
+        "All autonomy conditions met. The fix may be applied and then verified."
+    )
+    return PolicyResult(verdict=Verdict.ALLOW, reasons=reasons)
+
+
+# ---------------------------------------------------------------------------
+# POLICY 3 — Change and CAB Control
+# ---------------------------------------------------------------------------
+
+
+def evaluate_change_and_cab_control(
+    context: Dict[str, Any], config: Dict[str, Any]
+) -> PolicyResult:
+    """
+    Does this action need a change approval before it touches anything?
+
+    Expected context
+    ----------------
+    production_impact     bool
+    cab_approval_required bool   Change_Requests.cab_approval_required
+    risk                  str    Low | Medium | High
+    blast_radius          int    users or systems affected
+    action_category       str    access | infrastructure | critical_service | routine
+    change_status         str?   e.g. Pending CAB Approval | Rolled Back | Implemented
+    previous_rollback     bool?  a prior attempt on this change was rolled back
+    """
+    _require(context, "production_impact", "risk", "blast_radius")
+
+    production = bool(context["production_impact"])
+    risk = str(context["risk"]).strip().title()
+    blast = _num(context["blast_radius"], "blast_radius")
+    cab_required = bool(context.get("cab_approval_required", False))
+    category = str(context.get("action_category", "routine")).lower()
+    change_status = str(context.get("change_status") or "").strip()
+    prior_rollback = bool(context.get("previous_rollback", False))
+
+    review_risks = [str(r).title() for r in
+                    config.get("risk_levels_requiring_approval", ["Medium", "High"])]
+    max_blast = float(config.get("max_blast_radius", 25))
+    restricted = [str(c).lower() for c in config.get(
+        "restricted_categories", ["access", "infrastructure", "critical_service"])]
+    deny_on_rollback = bool(config.get("deny_if_previously_rolled_back", True))
+    require_on_production = bool(config.get("require_approval_if_production", True))
+
+    reasons: List[str] = []
+
+    # --- denials -----------------------------------------------------------
+    if deny_on_rollback and prior_rollback:
+        reasons.append(
+            "A previous attempt at this change was rolled back."
+        )
+        reasons.append(
+            "Re-running a change that already failed needs a new plan, not a "
+            "retry. Blocked pending investigation."
+        )
+        return PolicyResult(verdict=Verdict.DENY, reasons=reasons)
+
+    if change_status.lower() == "rejected":
+        reasons.append("The associated change request was rejected.")
+        reasons.append("A rejected change cannot be executed.")
+        return PolicyResult(verdict=Verdict.DENY, reasons=reasons)
+
+    # --- approval required -------------------------------------------------
+    if cab_required:
+        reasons.append(
+            "The associated change request is flagged cab_approval_required."
+        )
+        if change_status:
+            reasons.append(f"Current change status: {change_status}.")
+        reasons.append("CAB approval must be recorded before the action runs.")
+        return PolicyResult(verdict=Verdict.REQUIRE_HUMAN_REVIEW, reasons=reasons)
+
+    if require_on_production and production:
+        reasons.append("The action affects production systems.")
+        reasons.append(
+            "Production changes require an approver on record under the "
+            "current change-control settings."
+        )
+        return PolicyResult(verdict=Verdict.REQUIRE_HUMAN_REVIEW, reasons=reasons)
+
+    if risk in review_risks:
+        reasons.append(
+            f"Change risk is {risk}, which requires approval "
+            f"(configured: {', '.join(review_risks)})."
+        )
+        return PolicyResult(verdict=Verdict.REQUIRE_HUMAN_REVIEW, reasons=reasons)
+
+    if blast > max_blast:
+        reasons.append(
+            f"Blast radius of {int(blast)} exceeds the unattended limit of "
+            f"{int(max_blast)}."
+        )
+        reasons.append(
+            "Wide-reaching changes need a human to confirm the scope is intended."
+        )
+        return PolicyResult(verdict=Verdict.REQUIRE_HUMAN_REVIEW, reasons=reasons)
+
+    if category in restricted:
+        reasons.append(
+            f"The action changes {category}, which is a restricted category."
+        )
+        reasons.append(
+            "Access, infrastructure and critical-service changes are never "
+            "made without an approver."
+        )
+        return PolicyResult(verdict=Verdict.REQUIRE_HUMAN_REVIEW, reasons=reasons)
+
+    # --- allow -------------------------------------------------------------
+    reasons.append(f"Change risk is {risk} and no CAB approval is flagged.")
+    reasons.append(
+        f"Blast radius of {int(blast)} is within the unattended limit of "
+        f"{int(max_blast)}."
+    )
+    reasons.append("The action does not affect production or a restricted category.")
+    reasons.append("No change approval is required. The action may proceed.")
+    return PolicyResult(verdict=Verdict.ALLOW, reasons=reasons)
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
@@ -235,9 +475,8 @@ Evaluator = Callable[[Dict[str, Any], Dict[str, Any]], PolicyResult]
 
 EVALUATORS: Dict[str, Evaluator] = {
     "major_incident_declaration": evaluate_major_incident_declaration,
-    # P0 ships one working policy. Register the remaining two here:
-    #   "safe_auto_remediation":  evaluate_safe_auto_remediation,
-    #   "change_and_cab_control": evaluate_change_and_cab_control,
+    "safe_auto_remediation": evaluate_safe_auto_remediation,
+    "change_and_cab_control": evaluate_change_and_cab_control,
 }
 
 
