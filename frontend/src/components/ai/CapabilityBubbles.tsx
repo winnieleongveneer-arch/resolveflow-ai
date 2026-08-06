@@ -11,12 +11,39 @@ interface Capability {
 }
 
 const CAPABILITIES: Capability[] = [
-  { icon: Icons.helpCircle, label: 'What can you help me with?', query: 'What can you help me with?' },
-  { icon: Icons.activity, label: 'Show recent activity', query: 'Show me recent activity' },
-  { icon: Icons.fileText, label: 'Generate a report', query: 'Generate a report' },
-  { icon: Icons.brain, label: 'Create a policy', query: 'Help me create a new policy' },
-  { icon: Icons.lightbulb, label: 'Show insights', query: 'Show me AI insights' },
-  { icon: Icons.info, label: 'Explain this page', query: 'Explain this page to me' },
+  // Only intents the AI Manager can actually answer from stored records.
+  // Offering a prompt it would decline makes a principled refusal look like a
+  // broken feature, so the suggestions match the supported intents exactly.
+  {
+    icon: Icons.workbench,
+    label: 'Why is a ticket waiting?',
+    query: 'Why is ITSM-2211 waiting for a human?',
+  },
+  {
+    icon: Icons.shield,
+    label: 'Which policy blocked this?',
+    query: 'Which policy prevented this action for ITSM-2199?',
+  },
+  {
+    icon: Icons.alertTriangle,
+    label: 'Major-incident candidates',
+    query: 'Show current major-incident candidates',
+  },
+  {
+    icon: Icons.clock,
+    label: 'Likely SLA breaches',
+    query: 'Which tickets are likely to breach?',
+  },
+  {
+    icon: Icons.brain,
+    label: 'Active policies',
+    query: 'What are the active policies?',
+  },
+  {
+    icon: Icons.barChart,
+    label: 'Policy verdict distribution',
+    query: 'Show the policy verdict distribution',
+  },
 ]
 
 interface CapabilityBubblesProps {
