@@ -217,5 +217,12 @@
       "admin",
       "user"
     ]
+  },
+  "/api/outcomes.*": {
+    "description": "Outcome Ledger - requires approved user",
+    "ANY": [
+      "admin",
+      "user"
+    ]
   }
 }

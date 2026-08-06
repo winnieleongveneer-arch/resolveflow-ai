@@ -63,6 +63,7 @@ services:
       - "127.0.0.1:3001:3000"
     environment:
       - NODE_ENV=${NODE_ENV:-development}
+      - NEXTAUTH_URL_INTERNAL=${NEXTAUTH_URL_INTERNAL:-http://localhost:3000}
     env_file:
       - .env
     depends_on:

@@ -3,12 +3,14 @@ from .audit import AuditCategory, AuditLog, AuditSeverity
 from .item import Item
 from .service_desk import (
     IntegrationHealth,
+    OutcomeLedger,
     IntegrationStatus,
     OperatorEvent,
     PolicyDefinition,
     PolicyEvaluation,
     PolicyVersion,
     RunStatus,
+    TaskBaseline,
     Verdict,
     WorkbenchItem,
     WorkbenchStatus,
@@ -33,6 +35,8 @@ __all__ = [
     "PolicyEvaluation",
     "WorkbenchItem",
     "IntegrationHealth",
+    "OutcomeLedger",
+    "TaskBaseline",
     # Controlled vocabularies
     "RunStatus",
     "Verdict",

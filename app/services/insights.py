@@ -81,8 +81,41 @@ def _insight(
 # ---------------------------------------------------------------------------
 
 
+def _failed_condition(ctx: Dict[str, Any], config: Dict[str, Any]) -> str:
+    """
+    Work out WHICH condition actually blocked a major-incident declaration.
+
+    This matters because the recommendation has to address the failing
+    condition. Recommending a lower ticket-count threshold when the count
+    already passed is worse than saying nothing — it sends a business user to
+    change a setting that was never the problem.
+    """
+    count = ctx.get("correlated_ticket_count")
+    window = ctx.get("detection_window_minutes")
+    confidence = ctx.get("correlation_confidence")
+    shared = ctx.get("shared_system") or ctx.get("shared_root_cause")
+
+    min_count = config.get("minimum_correlated_ticket_count", 5)
+    max_window = config.get("detection_window_minutes", 20)
+    min_conf = config.get("minimum_correlation_confidence", 0.80)
+    needs_shared = config.get("require_shared_system_or_root_cause", True)
+
+    try:
+        if count is not None and float(count) < float(min_count):
+            return "count"
+        if window is not None and float(window) > float(max_window):
+            return "window"
+        if confidence is not None and float(confidence) < float(min_conf):
+            return "confidence"
+    except (TypeError, ValueError):
+        return "evidence"
+    if needs_shared and not shared:
+        return "shared_cause"
+    return "unknown"
+
+
 def _major_incident_forming(db: Session) -> List[Dict[str, Any]]:
-    """A major-incident policy evaluation that ALLOWed, or nearly did."""
+    """Major-incident evaluations, with a recommendation matching what failed."""
     rows = (
         db.query(PolicyEvaluation)
         .filter(
@@ -93,51 +126,118 @@ def _major_incident_forming(db: Session) -> List[Dict[str, Any]]:
         .limit(50)
         .all()
     )
-    out = []
+
+    out: List[Dict[str, Any]] = []
     for r in rows:
         ctx = r.input_context or {}
+        config = r.configuration_snapshot or {}
         count = ctx.get("correlated_ticket_count")
+        system = ctx.get("shared_system") or "a shared system"
+
         if r.verdict == Verdict.ALLOW:
             out.append(_insight(
-                key=f"major-incident-{r.id}",
-                title=f"Major incident confirmed around {ctx.get('shared_system', 'a shared system')}",
+                key=f"mi-confirmed::{ctx.get('shared_system') or r.issue_key}::v{r.policy_version}",
+                title=f"Major incident confirmed around {system}",
                 type_="major_incident",
                 severity=SEV_CRITICAL,
                 evidence=list(r.reasons or []),
                 affected=[r.issue_key] if r.issue_key else [],
                 implication=(
-                    f"{count} tickets share one root cause. Treating them "
-                    "individually multiplies handling effort and delays the fix "
-                    "everyone is waiting for."
+                    f"{count} tickets share one root cause. Handling them "
+                    "individually multiplies effort and delays the fix everyone "
+                    "is waiting for."
                 ),
                 recommendation=(
                     "Declare the parent incident, link the child tickets, and "
-                    "send one status update rather than replying to each ticket."
+                    "send one status update instead of replying to each ticket."
                 ),
                 action_label="Open the run",
-                action_href=f"/workbench?run={r.run_id}",
+                action_href=f"/runs/{r.run_id}",
             ))
-        elif r.verdict == Verdict.REQUIRE_HUMAN_REVIEW and isinstance(count, (int, float)) and count >= 3:
-            out.append(_insight(
-                key=f"major-incident-forming-{r.id}",
-                title="A ticket cluster is forming but has not met the declaration threshold",
-                type_="major_incident_forming",
-                severity=SEV_HIGH,
-                evidence=list(r.reasons or []),
-                affected=[r.issue_key] if r.issue_key else [],
-                implication=(
-                    "Volume is building on one system. If it is a genuine "
-                    "outage, every minute before declaration is duplicated "
-                    "triage work."
-                ),
-                recommendation=(
-                    "Confirm or dismiss in the Workbench. If this pattern keeps "
-                    "recurring, lower minimum_correlated_ticket_count."
-                ),
-                action_label="Review in Workbench",
-                action_href="/workbench",
-            ))
-    return out[:3]
+            continue
+
+        if r.verdict != Verdict.REQUIRE_HUMAN_REVIEW:
+            continue
+
+        failed = _failed_condition(ctx, config)
+        confidence = ctx.get("correlation_confidence")
+        min_conf = config.get("minimum_correlation_confidence", 0.80)
+        min_count = config.get("minimum_correlated_ticket_count", 5)
+
+        if failed == "confidence":
+            title = ("Ticket-volume threshold met, but correlation confidence "
+                     "is insufficient")
+            implication = (
+                f"{count} tickets cleared the volume threshold of {min_count}, "
+                f"so the cluster is real enough to matter. What is missing is "
+                f"certainty that they share one cause: correlation confidence "
+                f"is {confidence}, below the required {min_conf}."
+            )
+            recommendation = (
+                "Review the correlation evidence and confirm or dismiss the "
+                "proposed cluster in the Workbench. Investigate why confidence "
+                f"is below {min_conf} before changing any policy threshold — "
+                "the ticket-count threshold already passed and is not the "
+                "blocking condition."
+            )
+        elif failed == "shared_cause":
+            title = "Cluster detected, but no shared system or root cause identified"
+            implication = (
+                f"{count} tickets correlate on timing and text, but nothing "
+                "links them causally. Declaring on similarity alone risks "
+                "merging unrelated issues under one incident."
+            )
+            recommendation = (
+                "Confirm in the Workbench whether these tickets share a system. "
+                "If they routinely do and the field is simply unpopulated, fix "
+                "the data at intake rather than relaxing the policy."
+            )
+        elif failed == "count":
+            title = "Correlated tickets below the declaration threshold"
+            implication = (
+                f"Only {count} correlated tickets were found; the policy "
+                f"requires {min_count}. This may be an incident forming early, "
+                "or a recurring known error."
+            )
+            recommendation = (
+                "Watch whether the cluster grows. If clusters of this size "
+                f"repeatedly turn out to be genuine incidents, lowering "
+                "minimum_correlated_ticket_count is justified — that IS the "
+                "blocking condition here."
+            )
+        elif failed == "window":
+            title = "Tickets share a cause but arrived over too long a period"
+            implication = (
+                "A wide arrival window usually indicates a recurring known "
+                "error rather than one live outage. The two need different "
+                "handling."
+            )
+            recommendation = (
+                "Treat this as a known-error pattern: create or update a KB "
+                "article so future tickets auto-resolve, rather than widening "
+                "the incident detection window."
+            )
+        else:
+            title = "Major-incident evaluation paused for human review"
+            implication = "The policy could not reach a decision on the evidence supplied."
+            recommendation = (
+                "Open the case in the Workbench and supply the missing evidence. "
+                "Do not change policy thresholds until the failing condition is known."
+            )
+
+        out.append(_insight(
+            key=f"mi-{failed}::{ctx.get('shared_system') or 'cluster'}::v{r.policy_version}",
+            title=title,
+            type_="major_incident_forming",
+            severity=SEV_HIGH,
+            evidence=list(r.reasons or []),
+            affected=[r.issue_key] if r.issue_key else [],
+            implication=implication,
+            recommendation=recommendation,
+            action_label="Review in Workbench",
+            action_href="/workbench",
+        ))
+    return out
 
 
 def _blocked_by_policy(db: Session) -> List[Dict[str, Any]]:
@@ -414,12 +514,37 @@ SEVERITY_ORDER = {SEV_CRITICAL: 0, SEV_HIGH: 1, SEV_MEDIUM: 2, SEV_LOW: 3}
 
 
 def generate(db: Session) -> List[Dict[str, Any]]:
-    """Run every detector over real rows and return insights, worst first."""
-    out: List[Dict[str, Any]] = []
+    """
+    Run every detector over real rows and return insights, worst first.
+
+    Cards are merged on a deterministic fingerprint — insight type plus stable
+    subject plus policy version — so re-evaluating the same cluster updates the
+    existing card's evidence and affected count instead of stacking another
+    identical one. The earlier version keyed on the evaluation row id, which is
+    why duplicates appeared.
+    """
+    merged: Dict[str, Dict[str, Any]] = {}
     for detector in DETECTORS:
         try:
-            out.extend(detector(db))
+            for item in detector(db):
+                fingerprint = item["id"]
+                existing = merged.get(fingerprint)
+                if existing is None:
+                    item["occurrences"] = 1
+                    merged[fingerprint] = item
+                    continue
+                existing["occurrences"] = existing.get("occurrences", 1) + 1
+                for case in item.get("affected_cases", []):
+                    if case not in existing["affected_cases"]:
+                        existing["affected_cases"].append(case)
+                existing["affected_count"] = len(existing["affected_cases"])
+                for line in item.get("evidence", []):
+                    if line not in existing["evidence"]:
+                        existing["evidence"].append(line)
+                existing["detected_at"] = item["detected_at"]
         except Exception:
             log.exception("Insight detector %s failed", detector.__name__)
+
+    out = list(merged.values())
     out.sort(key=lambda i: SEVERITY_ORDER.get(i["severity"], 9))
     return out

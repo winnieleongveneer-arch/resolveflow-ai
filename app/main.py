@@ -42,8 +42,10 @@ from .routers import (
     examples_router,
     health_router,
     items_router,
+    ai_manager_router,
     insights_router,
     integrations_router,
+    outcomes_router,
     policies_router,
     policy_evaluations_router,
     policy_gate_router,
@@ -177,6 +179,10 @@ api_router.include_router(workbench_router)
 api_router.include_router(integrations_router)
 # AI Insights derived from real processed data.
 api_router.include_router(insights_router)
+# Outcome Ledger: metrics with their arithmetic attached.
+api_router.include_router(outcomes_router)
+# AI Manager: grounded operational Q&A.
+api_router.include_router(ai_manager_router)
 
 
 # =============================================================================

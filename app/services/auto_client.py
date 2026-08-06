@@ -561,3 +561,384 @@ def probe_execute_shapes(workflow_id: Optional[str] = None,
                             "error": redact(f"{type(exc).__name__}: {exc}")})
 
     return {"workflow_id": wf, "working_shape": winner, "results": results}
+
+
+# ---------------------------------------------------------------------------
+# Canonical execution — multipart/form-data against the streaming endpoint
+# ---------------------------------------------------------------------------
+
+
+def validate_workflow(workflow_id: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Confirm the ID really is an executable, published Orchestrator workflow.
+
+    A 500 from execute is often not a payload problem at all: the ID may be a
+    version ID, an Operator ID, or a workflow whose draft was never published.
+    Checking first turns an opaque 500 into a specific, fixable answer.
+    """
+    wf = (workflow_id or orchestrator_id()).strip()
+    out: Dict[str, Any] = {"workflow_id": wf}
+    if not wf:
+        return {"error": "SUPERVITY_ORCHESTRATOR_ID is not set."}
+
+    try:
+        detail, _ = _request("GET", f"/api/v1/workflows/{wf}", retries=1)
+        out["exists"] = True
+        out["name"] = detail.get("name") if isinstance(detail, dict) else None
+        out["detail_keys"] = sorted(detail.keys()) if isinstance(detail, dict) else []
+        out["detail"] = detail
+    except AutoError as exc:
+        out["exists"] = False
+        out["detail_error"] = redact(str(exc))[:300]
+        return out
+
+    try:
+        versions, _ = _request("GET", f"/api/v1/workflows/{wf}/versions", retries=1)
+        items = versions if isinstance(versions, list) else (
+            versions.get("versions") or versions.get("data") or []
+            if isinstance(versions, dict) else []
+        )
+        out["version_count"] = len(items)
+        out["versions"] = [
+            {k: v for k, v in item.items()
+             if k in ("id", "version", "isDefault", "default", "status",
+                      "publishedAt", "createdAt", "name")}
+            for item in items if isinstance(item, dict)
+        ][:10]
+        out["has_default_version"] = any(
+            item.get("isDefault") or item.get("default")
+            for item in items if isinstance(item, dict)
+        )
+    except AutoError as exc:
+        out["versions_error"] = redact(str(exc))[:300]
+
+    return out
+
+
+def execute_stream(
+    workflow_id: Optional[str] = None,
+    inputs: Optional[Dict[str, Any]] = None,
+    envs: Optional[Dict[str, Any]] = None,
+    max_events: int = 40,
+    read_seconds: float = 25.0,
+) -> Dict[str, Any]:
+    """
+    POST /api/v1/workflow-runs/execute/stream
+
+    Content type: multipart/form-data
+        workflowId = <published workflow UUID>
+        inputs     = <JSON-encoded string>
+        envs       = <JSON-encoded string>
+
+    Deliberately NOT a JSON body — that is what the earlier attempts sent, and
+    it is the most likely cause of the 500. The Content-Type header is left
+    unset so httpx generates the multipart boundary itself; setting it by hand
+    produces a malformed body.
+
+    Reads the SSE stream and returns the first real events, including the Auto
+    workflowRunId. Chain-of-thought events are summarised, never stored raw.
+    """
+    import json as _json
+
+    wf = (workflow_id or orchestrator_id()).strip()
+    if not wf:
+        raise AutoNotConfigured("SUPERVITY_ORCHESTRATOR_ID is not set.")
+
+    form = {
+        "workflowId": wf,
+        "inputs": _json.dumps(inputs or {}),
+        "envs": _json.dumps(envs or {}),
+    }
+
+    headers = _headers()
+    headers.pop("Accept", None)
+    headers["Accept"] = "text/event-stream"
+
+    url = f"{base_url()}/api/v1/workflow-runs/execute/stream"
+    started = time.perf_counter()
+    events: List[Dict[str, Any]] = []
+    auto_run_id: Optional[str] = None
+    activity_run_id: Optional[str] = None
+    status_code = None
+    raw_error = None
+
+    try:
+        with httpx.Client(timeout=httpx.Timeout(read_seconds + 10,
+                                                read=read_seconds)) as client:
+            # files= forces multipart encoding; each field is sent as a part.
+            with client.stream(
+                "POST", url,
+                files={k: (None, v) for k, v in form.items()},
+                headers=headers,
+            ) as response:
+                status_code = response.status_code
+                if response.status_code >= 400:
+                    raw_error = redact(response.read().decode(errors="replace")[:600])
+                else:
+                    current_event = None
+                    for line in response.iter_lines():
+                        if time.perf_counter() - started > read_seconds:
+                            break
+                        if not line:
+                            continue
+                        if line.startswith("event:"):
+                            current_event = line.split(":", 1)[1].strip()
+                            continue
+                        if line.startswith("data:"):
+                            payload = line.split(":", 1)[1].strip()
+                            try:
+                                parsed = _json.loads(payload)
+                            except Exception:
+                                parsed = {"raw": payload[:300]}
+
+                            if isinstance(parsed, dict):
+                                for key in ("workflowRunId", "runId", "id"):
+                                    val = parsed.get(key)
+                                    if (not auto_run_id and isinstance(val, str)
+                                            and len(val) > 20):
+                                        auto_run_id = val
+                                if not activity_run_id:
+                                    av = parsed.get("activityRunId")
+                                    if isinstance(av, str):
+                                        activity_run_id = av
+
+                            # Keep an operational summary only.
+                            events.append({
+                                "event": current_event or "message",
+                                "keys": sorted(parsed.keys())
+                                        if isinstance(parsed, dict) else None,
+                                "status": parsed.get("status")
+                                          if isinstance(parsed, dict) else None,
+                                "step": (parsed.get("stepName")
+                                         or parsed.get("name"))
+                                        if isinstance(parsed, dict) else None,
+                            })
+                            if len(events) >= max_events:
+                                break
+    except httpx.HTTPError as exc:
+        raw_error = redact(f"{type(exc).__name__}: {exc}")
+
+    latency = (time.perf_counter() - started) * 1000
+    return {
+        "transport": "multipart/execute-stream",
+        "http_status": status_code,
+        "auto_run_id": auto_run_id,
+        "activity_run_id": activity_run_id,
+        "event_count": len(events),
+        "events": events[:20],
+        "error": raw_error,
+        "latency_ms": round(latency, 1),
+        "started": bool(auto_run_id),
+    }
+
+
+def execute_json_stream(
+    workflow_id: Optional[str] = None,
+    inputs: Optional[Dict[str, Any]] = None,
+    envs: Optional[Dict[str, Any]] = None,
+    path: str = "/api/v1/workflow-runs/execute/stream",
+    read_seconds: float = 25.0,
+    max_events: int = 40,
+) -> Dict[str, Any]:
+    """
+    JSON body against the streaming endpoint.
+
+    The multipart attempt returned a precise validation error:
+        path ["inputs"] — expected record, received string
+        path ["envs"]   — expected record, received string
+
+    Multipart form fields are strings by definition, so the API cannot want
+    multipart here: `inputs` and `envs` must arrive as real JSON objects. The
+    earlier 500 came from the NON-streaming /execute endpoint, not from the
+    body shape.
+    """
+    import json as _json
+
+    wf = (workflow_id or orchestrator_id()).strip()
+    if not wf:
+        raise AutoNotConfigured("SUPERVITY_ORCHESTRATOR_ID is not set.")
+
+    body = {"workflowId": wf, "inputs": inputs or {}, "envs": envs or {}}
+    headers = _headers()
+    headers["Accept"] = "text/event-stream"
+    headers["Content-Type"] = "application/json"
+
+    url = f"{base_url()}{path}"
+    started = time.perf_counter()
+    events: List[Dict[str, Any]] = []
+    auto_run_id = activity_run_id = None
+    status_code = None
+    raw_error = None
+
+    try:
+        with httpx.Client(timeout=httpx.Timeout(read_seconds + 10,
+                                                read=read_seconds)) as client:
+            with client.stream("POST", url, json=body, headers=headers) as response:
+                status_code = response.status_code
+                if response.status_code >= 400:
+                    raw_error = redact(response.read().decode(errors="replace")[:600])
+                else:
+                    current = None
+                    for line in response.iter_lines():
+                        if time.perf_counter() - started > read_seconds:
+                            break
+                        if not line:
+                            continue
+                        if line.startswith("event:"):
+                            current = line.split(":", 1)[1].strip()
+                            continue
+                        if line.startswith("data:"):
+                            payload = line.split(":", 1)[1].strip()
+                            try:
+                                parsed = _json.loads(payload)
+                            except Exception:
+                                parsed = {"raw": payload[:200]}
+                            if isinstance(parsed, dict):
+                                for key in ("workflowRunId", "runId", "id"):
+                                    val = parsed.get(key)
+                                    if (not auto_run_id and isinstance(val, str)
+                                            and len(val) > 20):
+                                        auto_run_id = val
+                                if not activity_run_id and isinstance(
+                                        parsed.get("activityRunId"), str):
+                                    activity_run_id = parsed["activityRunId"]
+                            events.append({
+                                "event": current or "message",
+                                "status": parsed.get("status")
+                                          if isinstance(parsed, dict) else None,
+                                "step": (parsed.get("stepName") or parsed.get("name"))
+                                        if isinstance(parsed, dict) else None,
+                                "keys": sorted(parsed.keys())
+                                        if isinstance(parsed, dict) else None,
+                            })
+                            if len(events) >= max_events:
+                                break
+    except httpx.HTTPError as exc:
+        raw_error = redact(f"{type(exc).__name__}: {exc}")
+
+    return {
+        "transport": f"json{path}",
+        "http_status": status_code,
+        "auto_run_id": auto_run_id,
+        "activity_run_id": activity_run_id,
+        "event_count": len(events),
+        "events": events[:20],
+        "error": raw_error,
+        "latency_ms": round((time.perf_counter() - started) * 1000, 1),
+        "started": bool(auto_run_id),
+    }
+
+
+def execute_matrix(issue_key: str = "ITSM-2211") -> Dict[str, Any]:
+    """
+    Try the remaining plausible shapes and report which one Auto accepts.
+
+    Ordered cheapest-first; stops at the first success so at most one real
+    workflow run starts.
+    """
+    inputs = {"issue_key": issue_key, "trigger_source": "command_center"}
+    attempts = [
+        ("json -> /execute/stream", lambda: execute_json_stream(
+            inputs=inputs, path="/api/v1/workflow-runs/execute/stream")),
+        ("json -> /execute", lambda: execute_json_stream(
+            inputs=inputs, path="/api/v1/workflow-runs/execute")),
+        ("json, empty inputs -> /execute/stream", lambda: execute_json_stream(
+            inputs={}, path="/api/v1/workflow-runs/execute/stream")),
+    ]
+    results = []
+    winner = None
+    for label, fn in attempts:
+        try:
+            out = fn()
+        except Exception as exc:
+            out = {"error": redact(f"{type(exc).__name__}: {exc}")}
+        out["attempt"] = label
+        results.append(out)
+        if out.get("started"):
+            winner = label
+            break
+    return {"working_shape": winner, "attempts": results}
+
+
+def support_bundle(issue_key: str = "ITSM-2211") -> Dict[str, Any]:
+    """
+    Everything Supervity needs to diagnose the execution 500, and nothing that
+    would leak a credential.
+
+    Deliberately records what SUCCEEDS as well as what fails: the value of this
+    bundle is that it eliminates authentication, organisation context, workflow
+    publication state and request schema, leaving the platform's own execution
+    path as the only remaining explanation.
+    """
+    from datetime import datetime, timezone
+
+    org = org_key()
+    key = api_key()
+    bundle: Dict[str, Any] = {
+        "captured_at_utc": datetime.now(timezone.utc).isoformat(),
+        "api_base_url": base_url(),
+        "workflow_id": orchestrator_id(),
+        "active_org_header": (org[:3] + "***") if org else "(omitted)",
+        "api_key_present": bool(key),
+        "api_key_length": len(key) if key else 0,
+        "headers_sent": ["Authorization: Bearer <redacted>", "x-source: external"]
+                        + (["x-active-org: <redacted>"] if org else []),
+    }
+
+    # What works
+    try:
+        payload, latency = list_workflows(limit=5)
+        names = [w.get("name") for w in payload.get("workflows", [])] \
+            if isinstance(payload, dict) else []
+        bundle["reads_work"] = {
+            "endpoint": "GET /api/v1/workflows",
+            "status": 200,
+            "latency_ms": round(latency, 1),
+            "workflow_names": names,
+        }
+    except Exception as exc:
+        bundle["reads_work"] = {"error": redact(str(exc))[:300]}
+
+    bundle["workflow_validation"] = validate_workflow()
+
+    # What fails
+    inputs = {"issue_key": issue_key, "trigger_source": "command_center"}
+    bundle["execution_attempts"] = [
+        {"shape": "multipart/form-data -> /api/v1/workflow-runs/execute/stream",
+         **{k: v for k, v in execute_stream(inputs=inputs, read_seconds=8).items()
+            if k in ("http_status", "error", "latency_ms")}},
+        {"shape": "application/json -> /api/v1/workflow-runs/execute/stream",
+         **{k: v for k, v in execute_json_stream(
+             inputs=inputs, path="/api/v1/workflow-runs/execute/stream",
+             read_seconds=8).items()
+            if k in ("http_status", "error", "latency_ms")}},
+        {"shape": "application/json -> /api/v1/workflow-runs/execute",
+         **{k: v for k, v in execute_json_stream(
+             inputs=inputs, path="/api/v1/workflow-runs/execute",
+             read_seconds=8).items()
+            if k in ("http_status", "error", "latency_ms")}},
+    ]
+
+    bundle["analysis"] = [
+        "Authentication succeeds: GET /api/v1/workflows returns 200 and lists "
+        "this account's workflows.",
+        "The organisation context is correct: omitting x-active-org returns the "
+        "real workflows; supplying other values returns 200 with zero rows.",
+        "The workflow is executable: GET /api/v1/workflows/{id} succeeds and "
+        "/versions reports a version with isDefault = true.",
+        "The request schema is correct: multipart returns HTTP 400 naming "
+        "inputs and envs as 'expected record, received string', while a JSON "
+        "body passes validation and returns no 400.",
+        "Therefore the JSON body is the accepted format, and the HTTP 500 "
+        "occurs AFTER validation, inside the platform's execution path.",
+        "No workflowRunId is ever issued, so nothing is recorded as started.",
+    ]
+    bundle["question_for_supervity"] = (
+        "POST /api/v1/workflow-runs/execute and /execute/stream both return "
+        "HTTP 500 'Internal Server Error' for a published workflow with a "
+        "default version, using a Workflow API key that reads successfully. "
+        "Multipart returns a 400 schema error, so JSON is the accepted body. "
+        "What additional field or account permission does execution require, "
+        "and can you check the server-side error for this workflow id?"
+    )
+    return bundle

@@ -183,10 +183,22 @@ def list_runs(
 @router.get("/summary")
 def run_summary(db: Session = Depends(get_db)):
     """
-    Live dashboard counters, computed from real rows.
+    Dashboard metrics with defensible definitions.
 
-    Returns zeros on a fresh database. That is correct — the dashboard must
-    move because the agent ran, not because a number was seeded.
+    Each tile answers a different question, and none of them conflate
+    "imported", "waiting" and "executing":
+
+      backlog            cases known but not yet executing
+      executing_now      runs genuinely in flight on Auto
+      awaiting_human     UNIQUE pending Workbench decisions
+      verified_resolved  completed cases with verification evidence
+      technical_failures runs Auto reported failed, or launches that never started
+      auto_resolution    verified automatic / all verified resolutions, or None
+
+    A policy REVIEW or DENY is a business decision, not a technical failure,
+    and is counted separately. auto_resolution returns None — rendered N/A —
+    when the denominator is zero, because 0% would imply the agent tried and
+    failed rather than that nothing has completed yet.
     """
     by_status = dict(
         db.query(WorkflowRun.status, func.count(WorkflowRun.id))
@@ -194,26 +206,96 @@ def run_summary(db: Session = Depends(get_db)):
         .all()
     )
     total = sum(by_status.values())
-    active = sum(v for k, v in by_status.items() if k not in RunStatus.TERMINAL)
-    pending_reviews = (
-        db.query(func.count(WorkbenchItem.id))
+
+    EXECUTING = {RunStatus.CONTEXTUALISING, RunStatus.ANALYSING,
+                 RunStatus.PLANNING, RunStatus.EXECUTING,
+                 RunStatus.VERIFYING, RunStatus.ROLLING_BACK,
+                 RunStatus.COMMUNICATING, RunStatus.LEARNING}
+    WAITING = {RunStatus.WAITING_FOR_HUMAN}
+    FAILED = {RunStatus.FAILED}
+    # Backlog is everything known but not executing and not finished. Waiting
+    # cases belong here too: they are real work in the system, and leaving them
+    # out of every tile made 100 runs invisible on the dashboard.
+    QUEUED = {RunStatus.RECEIVED, RunStatus.POLICY_GATED, RunStatus.ESCALATED,
+              RunStatus.WAITING_FOR_HUMAN, RunStatus.APPROVED}
+
+    executing = sum(v for k, v in by_status.items() if k in EXECUTING)
+    waiting_runs = sum(v for k, v in by_status.items() if k in WAITING)
+    failed = sum(v for k, v in by_status.items() if k in FAILED)
+    backlog = sum(v for k, v in by_status.items() if k in QUEUED)
+
+    # Unique pending decisions, not raw item count.
+    awaiting_human = (
+        db.query(func.count(func.distinct(WorkbenchItem.run_id)))
         .filter(WorkbenchItem.status == WorkbenchStatus.PENDING)
         .scalar()
     ) or 0
-    latest = (
-        db.query(WorkflowRun).order_by(WorkflowRun.started_at.desc()).first()
-    )
+
+    # Verified outcomes come from the ledger, never from run status alone.
+    verified_resolved = 0
+    verified_auto = 0
+    try:
+        from ..models.service_desk import OutcomeLedger
+        verified_resolved = (
+            db.query(func.count(OutcomeLedger.id))
+            .filter(OutcomeLedger.verified.is_(True),
+                    OutcomeLedger.outcome.in_(("AUTO_RESOLVED", "HUMAN_RESOLVED")))
+            .scalar()
+        ) or 0
+        verified_auto = (
+            db.query(func.count(OutcomeLedger.id))
+            .filter(OutcomeLedger.verified.is_(True),
+                    OutcomeLedger.outcome == "AUTO_RESOLVED")
+            .scalar()
+        ) or 0
+    except Exception:
+        pass
+
+    auto_rate = (round(verified_auto / verified_resolved * 100, 1)
+                 if verified_resolved else None)
+
+    latest = db.query(WorkflowRun).order_by(WorkflowRun.started_at.desc()).first()
+
     return {
         "total_runs": total,
-        "active_runs": active,
-        "pending_human_reviews": pending_reviews,
+        "backlog": backlog,
+        "executing_now": executing,
+        "awaiting_human": awaiting_human,
+        "waiting_runs": waiting_runs,
+        "verified_resolved": verified_resolved,
+        "verified_auto_resolved": verified_auto,
+        "technical_failures": failed,
+        "auto_resolution_rate": auto_rate,
+        "auto_resolution_note": (
+            None if auto_rate is not None else
+            "No verified resolutions yet, so the rate is not computable. "
+            "Shown as N/A rather than 0% to avoid implying failed attempts."
+        ),
         "runs_by_status": by_status,
+        # Kept for backwards compatibility with existing callers.
+        "active_runs": executing,
+        "pending_human_reviews": awaiting_human,
         "latest_run": {
             "id": str(latest.id),
             "issue_key": latest.issue_key,
             "status": latest.status,
             "started_at": latest.started_at.isoformat() if latest.started_at else None,
         } if latest else None,
+        "reconciles": (
+            backlog + executing + failed
+            + sum(v for k, v in by_status.items()
+                  if k in (RunStatus.RESOLVED, RunStatus.DENIED)) == total
+        ),
+        "definitions": {
+            "backlog": "Known cases not executing and not finished, including "
+                       "those waiting on a human.",
+            "executing_now": "Runs in an actively executing stage. Waiting and "
+                             "failed-to-start runs are excluded.",
+            "awaiting_human": "Distinct runs with a pending Workbench decision.",
+            "verified_resolved": "Ledger rows marked verified with a resolved outcome.",
+            "technical_failures": "Runs Auto reported failed. Policy DENY and "
+                                  "human REJECT are business decisions, not failures.",
+        },
     }
 
 
@@ -380,3 +462,37 @@ def decision_passport(run_id: UUID, db: Session = Depends(get_db)):
     if doc is None:
         raise HTTPException(status_code=404, detail="Run not found")
     return doc
+
+
+@router.get("/auto/validate")
+def validate_auto_workflow(workflow_id: Optional[str] = None):
+    """Is the configured ID a real, published, executable Orchestrator?"""
+    return auto_client.validate_workflow(workflow_id)
+
+
+@router.post("/auto/execute-stream-test")
+def execute_stream_test(issue_key: str = "ITSM-2211"):
+    """
+    Canonical execution smoke test: multipart/form-data to
+    /api/v1/workflow-runs/execute/stream.
+
+    Returns the HTTP status, the Auto workflowRunId if one is issued, and the
+    first SSE events. This is the test that decides whether the platform
+    blocker is real or whether we were simply sending the wrong content type.
+    """
+    return auto_client.execute_stream(inputs={
+        "issue_key": issue_key,
+        "trigger_source": "command_center",
+    })
+
+
+@router.post("/auto/execute-matrix")
+def execute_matrix(issue_key: str = "ITSM-2211"):
+    """Try the remaining execution shapes and report which one Auto accepts."""
+    return auto_client.execute_matrix(issue_key)
+
+
+@router.get("/auto/support-bundle")
+def auto_support_bundle(issue_key: str = "ITSM-2211"):
+    """Credential-free diagnostic bundle for the Supervity execution 500."""
+    return auto_client.support_bundle(issue_key)

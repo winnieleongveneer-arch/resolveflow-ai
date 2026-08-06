@@ -426,3 +426,93 @@ class IntegrationHealth(Base):
 
     def __repr__(self):
         return f"<IntegrationHealth {self.integration_key} {self.status}>"
+
+
+
+# ---------------------------------------------------------------------------
+# G. outcome_ledger
+# ---------------------------------------------------------------------------
+
+
+class OutcomeLedger(Base):
+    """
+    One row per case the agent handled, recording what it cost.
+
+    Exists so no metric is ever an unsupported claim. "37 hours saved" is
+    worthless to a judge; "142 cases x (18 min baseline - 2.1 min actual human
+    touch), and here are the 142 rows" is evidence.
+
+    baseline_manual_minutes is NOT a guess: it is stored per task type with a
+    written justification in baseline_source, so anyone can challenge the
+    assumption rather than the arithmetic.
+    """
+
+    __tablename__ = "outcome_ledger"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    run_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("workflow_runs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    issue_key = Column(String(64), nullable=False, index=True)
+
+    # What kind of work this was — drives which baseline applies.
+    task_type = Column(String(64), nullable=False, index=True)
+
+    # The manual cost this case would have carried, and why we believe that.
+    baseline_manual_minutes = Column(Float, nullable=False)
+    baseline_source = Column(Text, nullable=True)
+
+    # What it actually cost.
+    agent_seconds = Column(Float, nullable=True)
+    human_touch_seconds = Column(Float, nullable=False, default=0.0)
+    human_interventions = Column(Integer, nullable=False, default=0)
+
+    # How it ended.
+    policy_verdict = Column(String(32), nullable=True)
+    outcome = Column(String(32), nullable=False, index=True)   # AUTO_RESOLVED | HUMAN_RESOLVED | ESCALATED | DENIED | FAILED
+    verified = Column(Boolean, nullable=False, default=False, index=True)
+    verification_note = Column(Text, nullable=True)
+
+    # SLA
+    sla_state = Column(String(32), nullable=True)              # Within SLA | At risk | Breached
+    predicted_breach = Column(Boolean, nullable=False, default=False)
+    breach_avoided = Column(Boolean, nullable=False, default=False)
+
+    # Rollback
+    rollback_attempted = Column(Boolean, nullable=False, default=False)
+    rollback_succeeded = Column(Boolean, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    __table_args__ = (
+        Index("ix_outcome_ledger_outcome_verified", "outcome", "verified"),
+    )
+
+    def __repr__(self):
+        return f"<OutcomeLedger {self.issue_key} {self.outcome}>"
+
+
+class TaskBaseline(Base):
+    """
+    The manual-effort baseline per task type, with its justification.
+
+    Editable, versioned by updated_at, and always shown next to any metric
+    derived from it — so the assumption is auditable, not buried.
+    """
+
+    __tablename__ = "task_baselines"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    task_type = Column(String(64), nullable=False, unique=True, index=True)
+    manual_minutes = Column(Float, nullable=False)
+    source = Column(Text, nullable=False)
+    updated_by = Column(String(255), nullable=True)
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    def __repr__(self):
+        return f"<TaskBaseline {self.task_type} {self.manual_minutes}m>"
