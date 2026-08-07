@@ -169,14 +169,31 @@ def create_run(payload: RunCreate, db: Session = Depends(get_db)):
 def list_runs(
     status: Optional[str] = None,
     issue_key: Optional[str] = None,
+    agent_only: bool = False,
     limit: int = Query(25, le=200),
     db: Session = Depends(get_db),
 ):
+    """
+    Recent runs.
+
+    ``agent_only`` filters to runs an Operator actually worked: those with at
+    least one recorded event. A reconciliation sweep writes a run row and a
+    policy evaluation but never calls an Operator, so it has no events. Those
+    rows are real history and stay queryable — they simply are not agent
+    activity, and showing them in a feed labelled "recent agent activity"
+    overstates what the agent did.
+    """
     q = db.query(WorkflowRun)
     if status:
         q = q.filter(WorkflowRun.status == status)
     if issue_key:
         q = q.filter(WorkflowRun.issue_key == issue_key)
+    if agent_only:
+        q = q.filter(
+            db.query(OperatorEvent.id)
+            .filter(OperatorEvent.run_id == WorkflowRun.id)
+            .exists()
+        )
     return q.order_by(WorkflowRun.started_at.desc()).limit(limit).all()
 
 
@@ -256,9 +273,42 @@ def run_summary(db: Session = Depends(get_db)):
 
     latest = db.query(WorkflowRun).order_by(WorkflowRun.started_at.desc()).first()
 
+    # ---- source tickets vs open agent cases -----------------------------
+    # Two different questions, and conflating them under one "Backlog" number
+    # invites the obvious challenge: "you said 460 tickets, why does this say
+    # 123?" Both answers are true; they count different things.
+    #
+    #   source_tickets    what exists in the system of record
+    #   open_agent_cases  UNIQUE cases the agent has taken in and not finished
+    #
+    # The second deduplicates by issue key on purpose. One ticket may have
+    # several attempts; a dashboard that counts attempts is counting its own
+    # retries as work.
+    open_agent_cases = (
+        db.query(func.count(func.distinct(WorkflowRun.issue_key)))
+        .filter(~WorkflowRun.issue_key.in_(
+            db.query(WorkflowRun.issue_key).filter(
+                WorkflowRun.status.in_([RunStatus.RESOLVED, RunStatus.DENIED,
+                                        RunStatus.FAILED]))
+        ))
+        .scalar()
+    ) or 0
+
+    # Counted live from the system of record. If Supabase is unreachable we
+    # return None rather than a stale or invented number — the tile then just
+    # omits the denominator instead of asserting one.
+    source_tickets = None
+    try:
+        from ..services import backlog as backlog_svc
+        source_tickets = backlog_svc.source_ticket_count()
+    except Exception as exc:
+        log.warning("Source ticket count unavailable: %s", exc)
+
     return {
         "total_runs": total,
         "backlog": backlog,
+        "open_agent_cases": open_agent_cases,
+        "source_tickets": source_tickets,
         "executing_now": executing,
         "awaiting_human": awaiting_human,
         "waiting_runs": waiting_runs,

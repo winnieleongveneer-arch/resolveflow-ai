@@ -20,6 +20,8 @@ import { apiClient } from '@/lib/api-client'
 interface Summary {
   total_runs: number
   backlog: number
+  open_agent_cases: number
+  source_tickets: number | null
   executing_now: number
   awaiting_human: number
   verified_resolved: number
@@ -99,7 +101,7 @@ export function LiveOperations() {
     try {
       const [s, r] = await Promise.all([
         apiClient.get<Summary>('/api/agent/summary'),
-        apiClient.get<Run[]>('/api/agent/runs?limit=8'),
+        apiClient.get<Run[]>('/api/agent/runs?limit=8&agent_only=true'),
       ])
       setSummary(s)
       setRuns(r)
@@ -129,12 +131,23 @@ export function LiveOperations() {
   return (
     <div className='space-y-4'>
       <div className='grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6'>
+        {/*
+          Two different questions, kept apart on purpose. "Backlog" alone
+          invited the obvious challenge — the source system has hundreds of
+          tickets, so why does this say a hundred and something? Both numbers
+          are true; they count different things. Naming the denominator here
+          answers it before it is asked.
+        */}
         <Tile
-          label='Backlog'
-          value={summary?.backlog ?? 0}
+          label='Open agent cases'
+          value={summary?.open_agent_cases ?? summary?.backlog ?? 0}
           icon={Icons.inbox}
           tone='bg-slate-600'
-          hint='known, not executing'
+          hint={
+            summary?.source_tickets
+              ? `of ${summary.source_tickets} source tickets`
+              : 'accepted, not yet in a verified outcome'
+          }
         />
         <Tile
           label='Executing now'

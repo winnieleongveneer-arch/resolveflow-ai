@@ -709,3 +709,35 @@ def enrich(t: Dict[str, Any], ref: Dict[str, Any]) -> None:
     on_call = [m for m in ref["roster"] if m.get("on_call")]
     if on_call:
         t["_ref_on_call"] = [m["member"] for m in on_call]
+
+
+def source_ticket_count(table: str = "issues") -> Optional[int]:
+    """
+    How many tickets exist in the system of record, right now.
+
+    Asks PostgREST for an exact count rather than pulling rows: one cheap
+    request, no pagination, and the number is never derived from a page we
+    happened to fetch.
+
+    Returns None when Supabase cannot be reached. A dashboard that shows no
+    denominator is honest; one that shows yesterday's is not.
+    """
+    base = os.getenv("SUPABASE_URL", "").rstrip("/")
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_ANON_KEY")
+    if not base or not key:
+        return None
+    r = httpx.get(
+        f"{base}/rest/v1/{table}",
+        params={"select": "issue_key", "limit": "1"},
+        headers={"apikey": key, "Authorization": f"Bearer {key}",
+                 "Prefer": "count=exact"},
+        timeout=8.0,
+    )
+    # A counted, limited read comes back 206 Partial Content, not 200.
+    if r.status_code not in (200, 206):
+        return None
+    content_range = r.headers.get("content-range", "")
+    if "/" not in content_range:
+        return None
+    total = content_range.rsplit("/", 1)[-1]
+    return int(total) if total.isdigit() else None
