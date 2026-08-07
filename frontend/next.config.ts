@@ -12,6 +12,12 @@ const getBasePath = () => {
 const nextConfig: NextConfig = {
   basePath: getBasePath(),
 
+  // The dev overlay badge renders on top of the dashboard and reports a count
+  // with nothing behind it. On a projector during judging that red pill reads
+  // as a broken application, so the indicator is off. Nothing is suppressed:
+  // real errors still go to the browser console and to `docker compose logs`.
+  devIndicators: false,
+
   env: {
     NEXT_PUBLIC_API_URL:
       process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001',
