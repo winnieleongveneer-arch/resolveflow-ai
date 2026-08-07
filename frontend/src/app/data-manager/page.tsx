@@ -181,7 +181,20 @@ export default function DataManagerPage() {
                     <div>
                       <dt className='text-muted-foreground'>Credentials</dt>
                       <dd className='font-medium'>
-                        {row.credentials_configured ? 'Configured' : 'Not set'}
+                        {/*
+                          "Not set" reads like an oversight. For Outlook it is a
+                          design decision: the OAuth token lives in Supervity
+                          Auto's connector and is injected into the Operator at
+                          run time, so this process never holds one. Saying that
+                          plainly is more accurate than a blank, and it explains
+                          why the status can still be HEALTHY — an Operator
+                          reported a delivery Graph accepted.
+                        */}
+                        {row.credentials_configured
+                          ? 'Configured here'
+                          : row.integration_key === 'outlook'
+                            ? 'Held by the Supervity Auto connector'
+                            : 'Not held by the Command Center'}
                       </dd>
                     </div>
                     <div>
