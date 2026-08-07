@@ -1,0 +1,39 @@
+article_id,title,root_cause,workaround,x_auto_safe
+KB-100,VPN drops after Windows security update,Driver conflict with patch KB-2026-07,Roll back NIC driver / apply hotfix,true
+KB-101,Email quota exceeded blocks send/receive,Mailbox at storage cap,"Increase quota, archive old mail",true
+KB-102,ERP timeout on report run,Batch job lock during peak,Restart report scheduler,true
+KB-103,SSO loop on dashboard login,Stale token cache,"Clear token, re-issue assertion",true
+KB-104,Known issue 4,Documented,Standard fix,false
+KB-105,Known issue 5,Documented,Standard fix,false
+KB-106,Known issue 6,Documented,Standard fix,false
+KB-107,Known issue 7,Documented,Standard fix,true
+KB-108,Known issue 8,Documented,Standard fix,false
+KB-109,Known issue 9,Documented,Standard fix,true
+KB-110,Known issue 10,Documented,Standard fix,true
+KB-111,Known issue 11,Documented,Standard fix,false
+KB-112,Known issue 12,Documented,Standard fix,true
+KB-113,Known issue 13,Documented,Standard fix,false
+KB-114,Known issue 14,Documented,Standard fix,false
+KB-115,Known issue 15,Documented,Standard fix,true
+KB-116,Known issue 16,Documented,Standard fix,true
+KB-117,Known issue 17,Documented,Standard fix,true
+KB-118,Known issue 18,Documented,Standard fix,false
+KB-119,Known issue 19,Documented,Standard fix,true
+KB-120,Known issue 20,Documented,Standard fix,false
+KB-121,Known issue 21,Documented,Standard fix,false
+KB-122,Known issue 22,Documented,Standard fix,true
+KB-123,Known issue 23,Documented,Standard fix,true
+KB-124,Known issue 24,Documented,Standard fix,false
+KB-125,Known issue 25,Documented,Standard fix,false
+KB-126,Known issue 26,Documented,Standard fix,true
+KB-127,Known issue 27,Documented,Standard fix,false
+KB-128,Known issue 28,Documented,Standard fix,false
+KB-129,Known issue 29,Documented,Standard fix,true
+KB-130,Payroll portal outage,Payroll portal backend node pool crashed under load,Restart node pool / failover to standby,false
+KB-131,SSO loop on analytics dashboard,Stale token cache after token-service restart,"Clear token cache, re-issue assertion",true
+KB-132,VPN driver rollback needs change approval,NIC driver rollback touches production image,"Raise change request, apply after CAB",false
+KB-133,Duplicate ticket auto-merge,Same requester submits twice within minutes,Merge duplicate into original,true
+KB-134,Timesheet submission failing,Payroll portal dependency down,Use offline timesheet form until restored,true
+KB-135,Known issue 35,Documented,Standard fix,false
+KB-136,Known issue 36,Documented,Standard fix,true
+KB-137,Known issue 37,Documented,Standard fix,true

@@ -305,3 +305,12 @@ deployment/prod.env
 
 keycloak_convert/
 keycloak_convert.zip
+
+# ---------------------------------------------------------------------------
+# Round 2 dataset — deliberately tracked
+# ---------------------------------------------------------------------------
+# *.sql is ignored above because database dumps do not belong in a repo. This
+# file is different: it is the schema a judge needs to rebuild the dataset from
+# a clean clone (guide 10.6, "your build must run from a clean clone"). The
+# negation lives here, at the end, because the last matching rule wins.
+!scripts/round2_schema.sql

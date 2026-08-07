@@ -1,0 +1,13 @@
+team,member,role,on_call,assignment_group,region
+Network Team,Ravi Menon,Lead,true,Network Ops,KL-HQ
+Network Team,Marcus Raj,Engineer,false,Network Ops,Singapore
+Network Team,Priya Wong,Engineer,false,Network Ops,Remote
+Service Desk Team,Anjali Tan,Lead,true,Service Desk,Singapore
+Service Desk Team,David Ng,Agent,false,Service Desk,Penang
+Service Desk Team,Grace Ncube,Agent,false,Service Desk,Penang
+Field Support Team,Kevin Das,Lead,true,Field Support,Penang
+Field Support Team,James Ismail,Technician,false,Field Support,Remote
+Field Support Team,Farah Lee,Technician,false,Field Support,Singapore
+App Support Team,Noah Fischer,Lead,true,App Support,Remote
+App Support Team,Priya Ismail,Engineer,false,App Support,KL-HQ
+App Support Team,Kevin Kumar,Engineer,false,App Support,Singapore

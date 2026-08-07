@@ -56,6 +56,13 @@ REGISTRY: List[Dict[str, Any]] = [
         ],
     },
     {
+        "integration_key": "outlook",
+        "integration_name": "Microsoft Outlook",
+        "category": "channel",
+        "purpose": "Keeps the person who raised the ticket informed: outcome mail when a fix is applied, acknowledgement when a human is asked to review.",
+        "used_by_operators": ["RF-03 Resolution Specialist", "RF-04 Customer Liaison"],
+    },
+    {
         "integration_key": "slack",
         "integration_name": "Slack",
         "category": "channel",
@@ -250,10 +257,33 @@ def _check_slack() -> Dict[str, Any]:
     }
 
 
+def _check_outlook() -> Dict[str, Any]:
+    """
+    Outlook is reached through Supervity Auto's Microsoft Outlook connector,
+    which performs the OAuth flow and injects MICROSOFT_OUTLOOK_TOKEN into the
+    Operator at run time. The Command Center therefore holds no Outlook
+    credential of its own and cannot probe Graph directly.
+
+    Saying so plainly is the honest answer. The status only becomes HEALTHY
+    once an Operator reports a message Graph actually accepted — see
+    POST /api/integrations/{key}/record-use.
+    """
+    return {
+        "status": IntegrationStatus.UNKNOWN,
+        "credentials_configured": False,
+        "error": (
+            "Authenticated by Supervity Auto's Microsoft Outlook connector; the "
+            "Command Center holds no token and will not claim a health it cannot "
+            "observe. Becomes HEALTHY when an Operator reports a delivered message."
+        ),
+    }
+
+
 CHECKS = {
     "supabase": _check_supabase,
     "supervity_auto": _check_supervity_auto,
     "slack": _check_slack,
+    "outlook": _check_outlook,
 }
 
 

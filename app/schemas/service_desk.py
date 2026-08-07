@@ -240,6 +240,16 @@ class GateResponse(BaseModel):
 # -------------------------------------------------------------- integrations
 
 
+class IntegrationUseReport(BaseModel):
+    """An Operator's report of a real round trip against an integration."""
+
+    operator_name: str
+    direction: str = "write"          # "read" or "write"
+    succeeded: bool = True
+    records: int = 1
+    detail: Optional[str] = None
+
+
 class IntegrationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

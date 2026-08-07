@@ -38,6 +38,54 @@ from ..models.service_desk import (
 NOT_RECORDED = "Not recorded."
 
 
+
+# ---------------------------------------------------------------------------
+# What counts as touching the outside world
+# ---------------------------------------------------------------------------
+
+# Every Operator that can change a system of record reports it under one of
+# these. Listing them explicitly — rather than matching on a name pattern —
+# means a new Operator has to be added here deliberately, and cannot start
+# claiming external changes by accident.
+EXTERNAL_CHANGE_EVENTS = {
+    "ACTION_EXECUTED",           # generic executor
+    "REMEDIATION_APPLIED",       # RF-03 applied a fix
+    "MAJOR_INCIDENT_DECLARED",   # RF-05 declared an incident
+    "NOTIFICATION_SENT",         # a message actually delivered
+}
+
+
+def _is_external_change(event) -> bool:
+    """
+    An attempted write is not a change.
+
+    RF-03 reports REMEDIATION_APPLIED whether or not the system of record
+    confirmed the write, and marks the event 'error' when it did not. Counting
+    those would let a rejected write appear in the audit trail as a completed
+    change, which is the exact failure this record exists to prevent.
+    """
+    if event.event_type not in EXTERNAL_CHANGE_EVENTS:
+        return False
+    if event.event_status in ("error", "denied", "skipped", "waiting"):
+        return False
+    return True
+
+
+def _is_verification(event) -> bool:
+    """
+    Verification is a claim the Operator made and the system of record backed.
+
+    A dedicated VERIFICATION event counts. So does an applied remediation whose
+    payload says verified is true — but only that; 'verified': false is an
+    Operator honestly reporting it could not confirm its own work.
+    """
+    if event.event_type == "VERIFICATION":
+        return True
+    if event.event_type == "REMEDIATION_APPLIED":
+        return bool((event.payload or {}).get("verified"))
+    return False
+
+
 def _iso(value) -> Optional[str]:
     return value.isoformat() if value else None
 
@@ -187,11 +235,11 @@ def build(db: Session, run_id: UUID) -> Optional[Dict[str, Any]]:
             "policies_evaluated": sorted({e.policy_key for e in evaluations})
                                   or ["None"],
             "external_changes": (
-                [e.payload for e in events if e.event_type == "ACTION_EXECUTED"]
+                [e.payload for e in events if _is_external_change(e)]
                 or "No external system was modified during this run."
             ),
             "verification": (
-                [e.payload for e in events if e.event_type == "VERIFICATION"]
+                [e.payload for e in events if _is_verification(e)]
                 or "No verification step was recorded."
             ),
         },

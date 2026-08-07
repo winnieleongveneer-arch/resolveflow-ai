@@ -1,0 +1,14 @@
+change_id,issue_key,risk,status,cab_approval_required,approver
+CHG-0001,ITSM-2180,High,Pending CAB Approval,true,
+CHG-0002,ITSM-2211,High,Pending CAB Approval,true,
+CHG-0003,ITSM-2212,High,Pending CAB Approval,true,
+CHG-0004,ITSM-2213,High,Pending CAB Approval,true,
+CHG-0005,ITSM-2214,Medium,Rolled Back,true,Priya Ismail
+CHG-0006,ITSM-2215,Medium,Rolled Back,true,Kenji Tanaka
+CHG-0007,ITSM-2216,Medium,Rolled Back,true,Kenji Tanaka
+CHG-0008,ITSM-2303,High,Implemented,true,Kevin Aziz
+CHG-0009,ITSM-2065,Medium,Rejected,true,Priya Ismail
+CHG-0010,ITSM-2132,High,Implemented,false,Kenji Tanaka
+CHG-0011,ITSM-2004,Low,Pending CAB Approval,false,Kenji Tanaka
+CHG-0012,ITSM-2351,High,Rejected,false,Kenji Tanaka
+CHG-0013,ITSM-2262,High,Implemented,false,Ravi Menon

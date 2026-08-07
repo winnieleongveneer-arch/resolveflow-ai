@@ -1,0 +1,6 @@
+region,business_hours,timezone,holiday_dates
+Singapore,09:00-18:00 Mon-Fri,Asia/Singapore,2026-08-09;2026-12-25;2026-01-01
+KL-HQ,09:00-18:00 Mon-Fri,Asia/Kuala_Lumpur,2026-08-31;2026-09-16;2026-12-25
+Penang,09:00-17:30 Mon-Fri,Asia/Kuala_Lumpur,2026-08-31;2026-07-07;2026-12-25
+Remote,24x7 follow-the-sun,UTC,2026-12-25;2026-01-01
+Global,09:00-18:00 Mon-Fri,Asia/Singapore,2026-12-25;2026-01-01

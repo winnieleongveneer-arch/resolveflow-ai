@@ -352,7 +352,92 @@ def append_run_event(
 
     db.commit()
     db.refresh(event)
+
+    _close_out(db, run, payload)
+
+    db.refresh(event)
     return event
+
+
+# ---------------------------------------------------------------------------
+# Closing a case out
+# ---------------------------------------------------------------------------
+
+
+def _close_out(db: Session, run: WorkflowRun, payload: OperatorEventCreate) -> None:
+    """
+    Turn an Operator's terminal event into a run outcome and a ledger row.
+
+    The Operator reports what it did; the Command Center decides what that
+    means for the record. Keeping the decision here rather than trusting the
+    Operator to declare its own success is the point — an Operator cannot
+    write itself into the resolution figures.
+
+    Three rules, and each one is a claim we are willing to defend:
+
+      * A fix only counts as resolved when the Operator confirmed the write
+        landed. 'verified: false' means it could not confirm its own work, and
+        that is an escalation, not a resolution.
+      * AUTO_RESOLVED requires that no human touched the case. If a Workbench
+        item was decided, it is HUMAN_RESOLVED however small the intervention.
+      * A refusal is a business outcome, not a technical failure.
+    """
+    body = payload.payload or {}
+    event_type = payload.event_type
+    terminal = {"REMEDIATION_APPLIED", "REMEDIATION_REFUSED"}
+    if event_type not in terminal:
+        return
+
+    # Never write a second ledger row for the same run.
+    try:
+        from ..models.service_desk import OutcomeLedger
+        if db.query(OutcomeLedger).filter(OutcomeLedger.run_id == run.id).first():
+            return
+    except Exception:
+        return
+
+    if event_type == "REMEDIATION_APPLIED":
+        confirmed = bool(body.get("verified")) and payload.event_status == "ok"
+        if not confirmed:
+            # The system of record did not back the claim. Say so and stop.
+            run.status = RunStatus.ESCALATED
+            run.current_stage = RunStatus.ESCALATED
+            db.commit()
+            log.info("Run %s reported a fix but could not confirm it; not counted.",
+                     run.id)
+            return
+        run.status = RunStatus.RESOLVED
+        run.current_stage = RunStatus.RESOLVED
+        outcome, verified = None, True
+        note = str(body.get("verification") or "Confirmed by the system of record.")
+    else:
+        run.status = RunStatus.DENIED
+        run.current_stage = RunStatus.DENIED
+        outcome, verified = "DENIED", False
+        note = "; ".join(body.get("reasons") or []) or "Refused by policy."
+
+    run.completed_at = datetime.now(timezone.utc)
+    db.commit()
+
+    try:
+        from ..services import outcomes
+        from ..services.backlog import classify
+        task_type = "known_error_remediation"
+        try:
+            task_type = classify({"summary": run.issue_key,
+                                  **(run.trigger_payload or {})})[0]
+        except Exception:
+            pass
+        outcomes.record(
+            db,
+            run=run,
+            task_type=task_type,
+            outcome=outcome,
+            verified=verified,
+            verification_note=note,
+        )
+    except Exception as exc:  # never let bookkeeping break the trace
+        log.warning("Could not write a ledger row for run %s: %s", run.id, exc)
 
 
 # ---------------------------------------------------------------------------

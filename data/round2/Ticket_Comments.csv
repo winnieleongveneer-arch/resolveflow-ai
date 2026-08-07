@@ -1,0 +1,278 @@
+comment_id,issue_key,author,created,body,is_internal
+CMT-00001,ITSM-2180,Ravi Menon,2026-07-20 09:10:00,Declaring major incident INC-9001; payroll portal backend down. Correlating inbound tickets.,true
+CMT-00002,ITSM-2180,Noah Fischer,2026-07-20 09:25:00,Node pool failover in progress. See KB-130. Change approval raised for standby cutover.,true
+CMT-00003,ITSM-2180,Kevin Aziz,2026-07-20 09:40:00,"Still cannot submit my timesheet, deadline is today.",false
+CMT-00004,ITSM-2181,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00005,ITSM-2182,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00006,ITSM-2183,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00007,ITSM-2184,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00008,ITSM-2185,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00009,ITSM-2186,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00010,ITSM-2187,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00011,ITSM-2187,Requester,2026-07-20 09:45:00,Any update? This is blocking payroll.,false
+CMT-00012,ITSM-2188,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00013,ITSM-2189,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00014,ITSM-2190,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00015,ITSM-2191,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00016,ITSM-2192,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00017,ITSM-2193,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00018,ITSM-2194,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00019,ITSM-2195,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00020,ITSM-2196,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00021,ITSM-2196,Requester,2026-07-20 09:45:00,Any update? This is blocking payroll.,false
+CMT-00022,ITSM-2197,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00023,ITSM-2197,Requester,2026-07-20 09:45:00,Any update? This is blocking payroll.,false
+CMT-00024,ITSM-2198,System,2026-07-20 09:30:00,Auto-correlated to major incident INC-9001 (payroll portal outage).,true
+CMT-00025,ITSM-2200,System,2026-07-22 10:30:00,Auto-correlated to INC-9002 (SSO login loop). Workaround KB-131.,true
+CMT-00026,ITSM-2201,System,2026-07-22 10:30:00,Auto-correlated to INC-9002 (SSO login loop). Workaround KB-131.,true
+CMT-00027,ITSM-2202,System,2026-07-22 10:30:00,Auto-correlated to INC-9002 (SSO login loop). Workaround KB-131.,true
+CMT-00028,ITSM-2203,System,2026-07-22 10:30:00,Auto-correlated to INC-9002 (SSO login loop). Workaround KB-131.,true
+CMT-00029,ITSM-2204,System,2026-07-22 10:30:00,Auto-correlated to INC-9002 (SSO login loop). Workaround KB-131.,true
+CMT-00030,ITSM-2205,System,2026-07-22 10:30:00,Auto-correlated to INC-9002 (SSO login loop). Workaround KB-131.,true
+CMT-00031,ITSM-2206,Service Desk,2026-07-19 09:30:00,"Not our queue, reassigning to Network Ops.",true
+CMT-00032,ITSM-2206,Network Ops,2026-07-19 11:00:00,"This is an access provisioning task, sending to App Support.",true
+CMT-00033,ITSM-2206,App Support,2026-07-19 14:00:00,Belongs with Field Support / Service Desk. Reassigning again.,true
+CMT-00034,ITSM-2206,Requester,2026-07-20 09:00:00,This has bounced between teams for two days and nobody owns it.,false
+CMT-00035,ITSM-2207,Service Desk,2026-07-19 09:30:00,"Not our queue, reassigning to Network Ops.",true
+CMT-00036,ITSM-2207,Network Ops,2026-07-19 11:00:00,"This is an access provisioning task, sending to App Support.",true
+CMT-00037,ITSM-2207,App Support,2026-07-19 14:00:00,Belongs with Field Support / Service Desk. Reassigning again.,true
+CMT-00038,ITSM-2207,Requester,2026-07-20 09:00:00,This has bounced between teams for two days and nobody owns it.,false
+CMT-00039,ITSM-2208,Service Desk,2026-07-19 09:30:00,"Not our queue, reassigning to Network Ops.",true
+CMT-00040,ITSM-2208,Network Ops,2026-07-19 11:00:00,"This is an access provisioning task, sending to App Support.",true
+CMT-00041,ITSM-2208,App Support,2026-07-19 14:00:00,Belongs with Field Support / Service Desk. Reassigning again.,true
+CMT-00042,ITSM-2208,Requester,2026-07-20 09:00:00,This has bounced between teams for two days and nobody owns it.,false
+CMT-00043,ITSM-2209,System,2026-07-24 19:45:00,"VIP requester, raised after business hours; on-call paged. Minutes from SLA breach.",true
+CMT-00044,ITSM-2210,System,2026-07-24 19:45:00,"VIP requester, raised after business hours; on-call paged. Minutes from SLA breach.",true
+CMT-00045,ITSM-2211,Ravi Menon,2026-07-18 12:00:00,"Fix requires production change; raised change request, awaiting CAB approval before applying.",true
+CMT-00046,ITSM-2212,Ravi Menon,2026-07-18 12:00:00,"Fix requires production change; raised change request, awaiting CAB approval before applying.",true
+CMT-00047,ITSM-2213,Ravi Menon,2026-07-18 12:00:00,"Fix requires production change; raised change request, awaiting CAB approval before applying.",true
+CMT-00048,ITSM-2214,System,2026-07-17 13:30:00,Auto-remediation applied quota increase.,true
+CMT-00049,ITSM-2214,System,2026-07-17 14:00:00,Remediation failed post-check; rolling back change to previous state.,true
+CMT-00050,ITSM-2214,Noah Fischer,2026-07-17 14:30:00,"Rollback complete, state restored. Escalating for manual fix.",true
+CMT-00051,ITSM-2215,System,2026-07-17 13:30:00,Auto-remediation applied quota increase.,true
+CMT-00052,ITSM-2215,System,2026-07-17 14:00:00,Remediation failed post-check; rolling back change to previous state.,true
+CMT-00053,ITSM-2215,Noah Fischer,2026-07-17 14:30:00,"Rollback complete, state restored. Escalating for manual fix.",true
+CMT-00054,ITSM-2216,System,2026-07-17 13:30:00,Auto-remediation applied quota increase.,true
+CMT-00055,ITSM-2216,System,2026-07-17 14:00:00,Remediation failed post-check; rolling back change to previous state.,true
+CMT-00056,ITSM-2216,Noah Fischer,2026-07-17 14:30:00,"Rollback complete, state restored. Escalating for manual fix.",true
+CMT-00057,ITSM-2218,System,2026-07-21 14:20:00,Possible duplicate of ITSM-2217 from same requester.,true
+CMT-00058,ITSM-2220,System,2026-07-21 14:20:00,Possible duplicate of ITSM-2219 from same requester.,true
+CMT-00059,ITSM-2222,System,2026-07-21 14:20:00,Possible duplicate of ITSM-2221 from same requester.,true
+CMT-00060,ITSM-2224,System,2026-07-20 09:20:00,"Same underlying issue as ITSM-2223 (payroll portal), reported in another language.",true
+CMT-00061,ITSM-2225,System,2026-07-20 09:20:00,"Same underlying issue as ITSM-2223 (payroll portal), reported in another language.",true
+CMT-00062,ITSM-2226,System,2026-07-20 09:20:00,"Same underlying issue as ITSM-2223 (payroll portal), reported in another language.",true
+CMT-00063,ITSM-2060,Noah Fischer,2026-07-13 15:00:00,"Thanks, that resolved it.",true
+CMT-00064,ITSM-2060,Noah Fischer,2026-07-19 14:00:00,"Thanks, that resolved it.",true
+CMT-00065,ITSM-2308,Requester,2026-07-06 10:00:00,"Still not working, please advise.",false
+CMT-00066,ITSM-2308,Ravi Menon,2026-07-08 13:00:00,When can I expect an update?,true
+CMT-00067,ITSM-2436,Ravi Menon,2026-07-24 11:00:00,"This is urgent, I am blocked.",true
+CMT-00068,ITSM-2209,Requester,2026-07-03 09:00:00,When can I expect an update?,false
+CMT-00069,ITSM-2056,Requester,2026-07-13 11:00:00,"Still not working, please advise.",false
+CMT-00070,ITSM-2056,Requester,2026-07-11 15:00:00,Waiting on requester confirmation.,false
+CMT-00071,ITSM-2061,Service Desk,2026-07-22 12:00:00,"Assigned to me, investigating.",true
+CMT-00072,ITSM-2189,Requester,2026-07-11 09:00:00,"Still not working, please advise.",false
+CMT-00073,ITSM-2189,Requester,2026-07-20 15:00:00,Closing as resolved.,false
+CMT-00074,ITSM-2292,Requester,2026-07-16 12:00:00,"Thanks, that resolved it.",false
+CMT-00075,ITSM-2148,Requester,2026-07-10 17:00:00,"Still not working, please advise.",false
+CMT-00076,ITSM-2020,Ravi Menon,2026-07-17 10:00:00,"This is urgent, I am blocked.",true
+CMT-00077,ITSM-2020,Service Desk,2026-07-20 11:00:00,Waiting on requester confirmation.,true
+CMT-00078,ITSM-2020,System,2026-07-20 16:00:00,"This is urgent, I am blocked.",true
+CMT-00079,ITSM-2267,Noah Fischer,2026-07-23 11:00:00,Applied standard workaround from KB.,true
+CMT-00080,ITSM-2078,Noah Fischer,2026-07-22 13:00:00,Applied standard workaround from KB.,true
+CMT-00081,ITSM-2219,Requester,2026-07-23 12:00:00,Waiting on requester confirmation.,false
+CMT-00082,ITSM-2219,Requester,2026-07-08 17:00:00,"Thanks, that resolved it.",false
+CMT-00083,ITSM-2219,Ravi Menon,2026-07-15 10:00:00,"Still not working, please advise.",true
+CMT-00084,ITSM-2190,Requester,2026-07-09 17:00:00,"This is urgent, I am blocked.",false
+CMT-00085,ITSM-2156,Requester,2026-07-25 16:00:00,Applied standard workaround from KB.,false
+CMT-00086,ITSM-2156,Requester,2026-07-24 14:00:00,"Assigned to me, investigating.",false
+CMT-00087,ITSM-2191,Noah Fischer,2026-07-03 11:00:00,Waiting on requester confirmation.,true
+CMT-00088,ITSM-2191,System,2026-07-03 09:00:00,Closing as resolved.,true
+CMT-00089,ITSM-2155,Noah Fischer,2026-07-15 17:00:00,Closing as resolved.,true
+CMT-00090,ITSM-2155,Requester,2026-07-24 16:00:00,"Thanks, that resolved it.",true
+CMT-00091,ITSM-2155,Ravi Menon,2026-07-22 14:00:00,"This is urgent, I am blocked.",true
+CMT-00092,ITSM-2150,Requester,2026-07-17 14:00:00,"Still not working, please advise.",true
+CMT-00093,ITSM-2150,Noah Fischer,2026-07-10 09:00:00,"Thanks, that resolved it.",true
+CMT-00094,ITSM-2248,Requester,2026-07-05 13:00:00,"Assigned to me, investigating.",false
+CMT-00095,ITSM-2248,Service Desk,2026-07-14 09:00:00,Closing as resolved.,true
+CMT-00096,ITSM-2014,Requester,2026-07-03 12:00:00,"Assigned to me, investigating.",false
+CMT-00097,ITSM-2014,Requester,2026-07-11 17:00:00,"Still not working, please advise.",false
+CMT-00098,ITSM-2405,System,2026-07-24 11:00:00,"Assigned to me, investigating.",true
+CMT-00099,ITSM-2405,System,2026-07-26 10:00:00,When can I expect an update?,true
+CMT-00100,ITSM-2073,Requester,2026-07-19 13:00:00,"Assigned to me, investigating.",false
+CMT-00101,ITSM-2072,System,2026-07-24 17:00:00,Applied standard workaround from KB.,true
+CMT-00102,ITSM-2401,Noah Fischer,2026-07-13 15:00:00,"Thanks, that resolved it.",true
+CMT-00103,ITSM-2401,Requester,2026-07-06 17:00:00,Applied standard workaround from KB.,false
+CMT-00104,ITSM-2301,Requester,2026-07-19 09:00:00,Waiting on requester confirmation.,false
+CMT-00105,ITSM-2301,Requester,2026-07-16 17:00:00,Applied standard workaround from KB.,true
+CMT-00106,ITSM-2215,Requester,2026-07-15 12:00:00,"Thanks, that resolved it.",false
+CMT-00107,ITSM-2215,Requester,2026-07-21 09:00:00,"Still not working, please advise.",false
+CMT-00108,ITSM-2024,Noah Fischer,2026-07-10 12:00:00,"Still not working, please advise.",true
+CMT-00109,ITSM-2024,Ravi Menon,2026-07-05 10:00:00,Applied standard workaround from KB.,true
+CMT-00110,ITSM-2024,Noah Fischer,2026-07-03 14:00:00,"This is urgent, I am blocked.",true
+CMT-00111,ITSM-2447,Requester,2026-07-10 14:00:00,Closing as resolved.,true
+CMT-00112,ITSM-2447,Ravi Menon,2026-07-05 16:00:00,"Assigned to me, investigating.",true
+CMT-00113,ITSM-2145,Requester,2026-07-05 09:00:00,"Still not working, please advise.",false
+CMT-00114,ITSM-2110,Requester,2026-07-25 10:00:00,Waiting on requester confirmation.,false
+CMT-00115,ITSM-2093,Noah Fischer,2026-07-12 15:00:00,"Thanks, that resolved it.",true
+CMT-00116,ITSM-2419,Requester,2026-07-12 15:00:00,"Thanks, that resolved it.",true
+CMT-00117,ITSM-2378,System,2026-07-10 09:00:00,"This is urgent, I am blocked.",true
+CMT-00118,ITSM-2378,Requester,2026-07-17 15:00:00,"This is urgent, I am blocked.",false
+CMT-00119,ITSM-2250,Ravi Menon,2026-07-17 17:00:00,"Thanks, that resolved it.",true
+CMT-00120,ITSM-2250,Requester,2026-07-06 10:00:00,"Assigned to me, investigating.",false
+CMT-00121,ITSM-2250,System,2026-07-21 12:00:00,"Still not working, please advise.",true
+CMT-00122,ITSM-2001,System,2026-07-14 15:00:00,Applied standard workaround from KB.,true
+CMT-00123,ITSM-2001,Requester,2026-07-08 12:00:00,Closing as resolved.,false
+CMT-00124,ITSM-2001,Requester,2026-07-07 13:00:00,"Thanks, that resolved it.",true
+CMT-00125,ITSM-2062,Requester,2026-07-12 17:00:00,Waiting on requester confirmation.,false
+CMT-00126,ITSM-2062,Service Desk,2026-07-12 14:00:00,Closing as resolved.,true
+CMT-00127,ITSM-2062,Requester,2026-07-03 17:00:00,Waiting on requester confirmation.,false
+CMT-00128,ITSM-2280,Requester,2026-07-19 17:00:00,"Assigned to me, investigating.",true
+CMT-00129,ITSM-2280,Noah Fischer,2026-07-09 12:00:00,Waiting on requester confirmation.,true
+CMT-00130,ITSM-2280,Requester,2026-07-09 16:00:00,Waiting on requester confirmation.,true
+CMT-00131,ITSM-2178,Requester,2026-07-21 14:00:00,Waiting on requester confirmation.,false
+CMT-00132,ITSM-2178,Requester,2026-07-13 11:00:00,"This is urgent, I am blocked.",false
+CMT-00133,ITSM-2178,Noah Fischer,2026-07-18 12:00:00,"Thanks, that resolved it.",true
+CMT-00134,ITSM-2034,Service Desk,2026-07-22 12:00:00,Closing as resolved.,true
+CMT-00135,ITSM-2022,Requester,2026-07-26 15:00:00,Waiting on requester confirmation.,false
+CMT-00136,ITSM-2213,Requester,2026-07-03 14:00:00,When can I expect an update?,false
+CMT-00137,ITSM-2246,Ravi Menon,2026-07-20 10:00:00,"Thanks, that resolved it.",true
+CMT-00138,ITSM-2293,Requester,2026-07-09 14:00:00,Closing as resolved.,false
+CMT-00139,ITSM-2158,Service Desk,2026-07-12 11:00:00,"Assigned to me, investigating.",true
+CMT-00140,ITSM-2289,Requester,2026-07-13 17:00:00,When can I expect an update?,false
+CMT-00141,ITSM-2231,Service Desk,2026-07-08 13:00:00,"Thanks, that resolved it.",true
+CMT-00142,ITSM-2172,Service Desk,2026-07-23 10:00:00,"This is urgent, I am blocked.",true
+CMT-00143,ITSM-2400,Ravi Menon,2026-07-10 14:00:00,Closing as resolved.,true
+CMT-00144,ITSM-2400,Requester,2026-07-19 15:00:00,When can I expect an update?,false
+CMT-00145,ITSM-2193,Requester,2026-07-07 12:00:00,When can I expect an update?,true
+CMT-00146,ITSM-2193,System,2026-07-25 14:00:00,"This is urgent, I am blocked.",true
+CMT-00147,ITSM-2193,Requester,2026-07-23 12:00:00,"This is urgent, I am blocked.",false
+CMT-00148,ITSM-2243,System,2026-07-07 14:00:00,Applied standard workaround from KB.,true
+CMT-00149,ITSM-2368,Ravi Menon,2026-07-19 16:00:00,When can I expect an update?,true
+CMT-00150,ITSM-2310,Noah Fischer,2026-07-08 17:00:00,"Still not working, please advise.",true
+CMT-00151,ITSM-2067,Requester,2026-07-19 16:00:00,Closing as resolved.,false
+CMT-00152,ITSM-2067,Ravi Menon,2026-07-19 16:00:00,Waiting on requester confirmation.,true
+CMT-00153,ITSM-2390,Requester,2026-07-11 15:00:00,Closing as resolved.,false
+CMT-00154,ITSM-2390,Service Desk,2026-07-09 16:00:00,"Assigned to me, investigating.",true
+CMT-00155,ITSM-2390,Noah Fischer,2026-07-12 15:00:00,"Assigned to me, investigating.",true
+CMT-00156,ITSM-2070,Ravi Menon,2026-07-20 10:00:00,Applied standard workaround from KB.,true
+CMT-00157,ITSM-2070,Requester,2026-07-17 17:00:00,Applied standard workaround from KB.,true
+CMT-00158,ITSM-2258,System,2026-07-17 17:00:00,"Thanks, that resolved it.",true
+CMT-00159,ITSM-2258,Requester,2026-07-17 16:00:00,"This is urgent, I am blocked.",false
+CMT-00160,ITSM-2325,Requester,2026-07-18 14:00:00,Waiting on requester confirmation.,false
+CMT-00161,ITSM-2325,Requester,2026-07-03 11:00:00,"This is urgent, I am blocked.",false
+CMT-00162,ITSM-2235,Ravi Menon,2026-07-14 10:00:00,"Still not working, please advise.",true
+CMT-00163,ITSM-2235,Requester,2026-07-11 12:00:00,"Still not working, please advise.",false
+CMT-00164,ITSM-2389,Requester,2026-07-04 17:00:00,Waiting on requester confirmation.,true
+CMT-00165,ITSM-2230,Requester,2026-07-24 14:00:00,"Assigned to me, investigating.",false
+CMT-00166,ITSM-2341,Requester,2026-07-09 11:00:00,Applied standard workaround from KB.,false
+CMT-00167,ITSM-2341,Requester,2026-07-12 13:00:00,"Thanks, that resolved it.",false
+CMT-00168,ITSM-2229,Requester,2026-07-21 09:00:00,"This is urgent, I am blocked.",false
+CMT-00169,ITSM-2229,Requester,2026-07-15 12:00:00,When can I expect an update?,false
+CMT-00170,ITSM-2076,Noah Fischer,2026-07-19 17:00:00,"Assigned to me, investigating.",true
+CMT-00171,ITSM-2372,Requester,2026-07-05 14:00:00,Waiting on requester confirmation.,false
+CMT-00172,ITSM-2372,Noah Fischer,2026-07-09 16:00:00,"This is urgent, I am blocked.",true
+CMT-00173,ITSM-2166,Ravi Menon,2026-07-21 11:00:00,When can I expect an update?,true
+CMT-00174,ITSM-2166,Requester,2026-07-18 14:00:00,"Thanks, that resolved it.",false
+CMT-00175,ITSM-2045,Noah Fischer,2026-07-24 15:00:00,"This is urgent, I am blocked.",true
+CMT-00176,ITSM-2045,Requester,2026-07-21 09:00:00,Waiting on requester confirmation.,false
+CMT-00177,ITSM-2319,Service Desk,2026-07-13 15:00:00,When can I expect an update?,true
+CMT-00178,ITSM-2319,Requester,2026-07-15 10:00:00,"Assigned to me, investigating.",false
+CMT-00179,ITSM-2319,Requester,2026-07-18 10:00:00,"Assigned to me, investigating.",false
+CMT-00180,ITSM-2340,Requester,2026-07-05 11:00:00,Applied standard workaround from KB.,false
+CMT-00181,ITSM-2340,System,2026-07-04 16:00:00,When can I expect an update?,true
+CMT-00182,ITSM-2395,Service Desk,2026-07-15 13:00:00,"Still not working, please advise.",true
+CMT-00183,ITSM-2458,Ravi Menon,2026-07-17 09:00:00,"Still not working, please advise.",true
+CMT-00184,ITSM-2198,Service Desk,2026-07-16 15:00:00,Waiting on requester confirmation.,true
+CMT-00185,ITSM-2198,Requester,2026-07-20 15:00:00,When can I expect an update?,true
+CMT-00186,ITSM-2119,Noah Fischer,2026-07-07 12:00:00,"Assigned to me, investigating.",true
+CMT-00187,ITSM-2119,Requester,2026-07-25 16:00:00,"This is urgent, I am blocked.",false
+CMT-00188,ITSM-2202,Requester,2026-07-19 16:00:00,"Assigned to me, investigating.",false
+CMT-00189,ITSM-2173,Requester,2026-07-17 10:00:00,When can I expect an update?,true
+CMT-00190,ITSM-2173,Requester,2026-07-19 14:00:00,"Assigned to me, investigating.",false
+CMT-00191,ITSM-2276,Requester,2026-07-17 09:00:00,Closing as resolved.,false
+CMT-00192,ITSM-2276,Ravi Menon,2026-07-14 13:00:00,Closing as resolved.,true
+CMT-00193,ITSM-2276,Requester,2026-07-16 12:00:00,When can I expect an update?,false
+CMT-00194,ITSM-2023,Requester,2026-07-15 11:00:00,Closing as resolved.,false
+CMT-00195,ITSM-2343,Noah Fischer,2026-07-10 11:00:00,"Thanks, that resolved it.",true
+CMT-00196,ITSM-2343,Requester,2026-07-24 10:00:00,Applied standard workaround from KB.,false
+CMT-00197,ITSM-2343,Noah Fischer,2026-07-20 10:00:00,"This is urgent, I am blocked.",true
+CMT-00198,ITSM-2226,Requester,2026-07-16 16:00:00,Waiting on requester confirmation.,true
+CMT-00199,ITSM-2226,Ravi Menon,2026-07-19 09:00:00,"Assigned to me, investigating.",true
+CMT-00200,ITSM-2376,Requester,2026-07-15 14:00:00,Closing as resolved.,true
+CMT-00201,ITSM-2376,Requester,2026-07-15 09:00:00,"Assigned to me, investigating.",false
+CMT-00202,ITSM-2142,Requester,2026-07-25 11:00:00,"Still not working, please advise.",false
+CMT-00203,ITSM-2330,Requester,2026-07-17 10:00:00,Closing as resolved.,false
+CMT-00204,ITSM-2330,System,2026-07-25 16:00:00,"Assigned to me, investigating.",true
+CMT-00205,ITSM-2396,Requester,2026-07-08 11:00:00,Applied standard workaround from KB.,false
+CMT-00206,ITSM-2084,Service Desk,2026-07-06 17:00:00,Applied standard workaround from KB.,true
+CMT-00207,ITSM-2362,Requester,2026-07-05 09:00:00,When can I expect an update?,false
+CMT-00208,ITSM-2362,Requester,2026-07-17 14:00:00,When can I expect an update?,false
+CMT-00209,ITSM-2362,Service Desk,2026-07-24 17:00:00,"Thanks, that resolved it.",true
+CMT-00210,ITSM-2012,Requester,2026-07-23 17:00:00,"Thanks, that resolved it.",false
+CMT-00211,ITSM-2454,Noah Fischer,2026-07-17 09:00:00,Applied standard workaround from KB.,true
+CMT-00212,ITSM-2454,Requester,2026-07-09 12:00:00,"This is urgent, I am blocked.",true
+CMT-00213,ITSM-2454,Requester,2026-07-09 10:00:00,"Assigned to me, investigating.",false
+CMT-00214,ITSM-2322,Requester,2026-07-03 14:00:00,"Thanks, that resolved it.",false
+CMT-00215,ITSM-2429,Service Desk,2026-07-24 11:00:00,"Still not working, please advise.",true
+CMT-00216,ITSM-2418,Requester,2026-07-19 10:00:00,"This is urgent, I am blocked.",true
+CMT-00217,ITSM-2418,Requester,2026-07-20 12:00:00,Waiting on requester confirmation.,false
+CMT-00218,ITSM-2418,System,2026-07-16 10:00:00,"This is urgent, I am blocked.",true
+CMT-00219,ITSM-2287,Requester,2026-07-13 11:00:00,Waiting on requester confirmation.,true
+CMT-00220,ITSM-2381,Requester,2026-07-03 15:00:00,Waiting on requester confirmation.,false
+CMT-00221,ITSM-2063,Requester,2026-07-05 13:00:00,"Assigned to me, investigating.",false
+CMT-00222,ITSM-2329,Requester,2026-07-05 12:00:00,"Thanks, that resolved it.",false
+CMT-00223,ITSM-2329,Requester,2026-07-22 16:00:00,Applied standard workaround from KB.,false
+CMT-00224,ITSM-2329,System,2026-07-11 10:00:00,When can I expect an update?,true
+CMT-00225,ITSM-2286,Requester,2026-07-24 11:00:00,"This is urgent, I am blocked.",false
+CMT-00226,ITSM-2286,Requester,2026-07-23 14:00:00,When can I expect an update?,false
+CMT-00227,ITSM-2286,Requester,2026-07-13 09:00:00,"Still not working, please advise.",false
+CMT-00228,ITSM-2043,Requester,2026-07-19 12:00:00,"This is urgent, I am blocked.",false
+CMT-00229,ITSM-2043,Service Desk,2026-07-22 10:00:00,"Thanks, that resolved it.",true
+CMT-00230,ITSM-2043,Requester,2026-07-26 15:00:00,"Assigned to me, investigating.",false
+CMT-00231,ITSM-2098,Requester,2026-07-14 16:00:00,When can I expect an update?,true
+CMT-00232,ITSM-2316,Service Desk,2026-07-09 09:00:00,"This is urgent, I am blocked.",true
+CMT-00233,ITSM-2316,System,2026-07-26 14:00:00,Closing as resolved.,true
+CMT-00234,ITSM-2277,Requester,2026-07-23 09:00:00,Waiting on requester confirmation.,false
+CMT-00235,ITSM-2295,Requester,2026-07-03 12:00:00,Applied standard workaround from KB.,false
+CMT-00236,ITSM-2295,Requester,2026-07-10 12:00:00,Waiting on requester confirmation.,false
+CMT-00237,ITSM-2295,Service Desk,2026-07-22 15:00:00,"Assigned to me, investigating.",true
+CMT-00238,ITSM-2027,Requester,2026-07-17 09:00:00,When can I expect an update?,false
+CMT-00239,ITSM-2027,Noah Fischer,2026-07-09 09:00:00,"Still not working, please advise.",true
+CMT-00240,ITSM-2027,Service Desk,2026-07-05 11:00:00,When can I expect an update?,true
+CMT-00241,ITSM-2291,Service Desk,2026-07-16 16:00:00,"Still not working, please advise.",true
+CMT-00242,ITSM-2291,Requester,2026-07-26 12:00:00,When can I expect an update?,false
+CMT-00243,ITSM-2291,Noah Fischer,2026-07-22 12:00:00,When can I expect an update?,true
+CMT-00244,ITSM-2451,Requester,2026-07-23 12:00:00,Closing as resolved.,false
+CMT-00245,ITSM-2451,Requester,2026-07-05 14:00:00,Closing as resolved.,false
+CMT-00246,ITSM-2096,Requester,2026-07-18 16:00:00,When can I expect an update?,false
+CMT-00247,ITSM-2096,Requester,2026-07-07 16:00:00,"This is urgent, I am blocked.",false
+CMT-00248,ITSM-2412,Requester,2026-07-05 13:00:00,"This is urgent, I am blocked.",false
+CMT-00249,ITSM-2257,System,2026-07-11 15:00:00,When can I expect an update?,true
+CMT-00250,ITSM-2257,Requester,2026-07-17 13:00:00,Applied standard workaround from KB.,false
+CMT-00251,ITSM-2257,Requester,2026-07-05 14:00:00,Closing as resolved.,false
+CMT-00252,ITSM-2009,Requester,2026-07-07 12:00:00,"Assigned to me, investigating.",false
+CMT-00253,ITSM-2456,System,2026-07-18 15:00:00,Waiting on requester confirmation.,true
+CMT-00254,ITSM-2337,Requester,2026-07-15 16:00:00,Waiting on requester confirmation.,false
+CMT-00255,ITSM-2337,Requester,2026-07-16 09:00:00,"Still not working, please advise.",false
+CMT-00256,ITSM-2272,Requester,2026-07-09 15:00:00,When can I expect an update?,false
+CMT-00257,ITSM-2092,Requester,2026-07-23 14:00:00,Closing as resolved.,false
+CMT-00258,ITSM-2092,Noah Fischer,2026-07-26 12:00:00,"This is urgent, I am blocked.",true
+CMT-00259,ITSM-2356,Requester,2026-07-14 09:00:00,"Thanks, that resolved it.",false
+CMT-00260,ITSM-2140,Ravi Menon,2026-07-24 11:00:00,Closing as resolved.,true
+CMT-00261,ITSM-2140,Requester,2026-07-22 11:00:00,"Assigned to me, investigating.",false
+CMT-00262,ITSM-2140,Requester,2026-07-23 15:00:00,"Still not working, please advise.",true
+CMT-00263,ITSM-2105,System,2026-07-16 11:00:00,"Assigned to me, investigating.",true
+CMT-00264,ITSM-2105,Requester,2026-07-25 13:00:00,Applied standard workaround from KB.,false
+CMT-00265,ITSM-2125,Requester,2026-07-26 15:00:00,Applied standard workaround from KB.,false
+CMT-00266,ITSM-2125,Requester,2026-07-07 13:00:00,Waiting on requester confirmation.,true
+CMT-00267,ITSM-2125,Noah Fischer,2026-07-03 11:00:00,Applied standard workaround from KB.,true
+CMT-00268,ITSM-2296,Requester,2026-07-25 15:00:00,"Still not working, please advise.",true
+CMT-00269,ITSM-2296,Requester,2026-07-26 15:00:00,Applied standard workaround from KB.,false
+CMT-00270,ITSM-2227,Ravi Menon,2026-07-25 11:00:00,When can I expect an update?,true
+CMT-00271,ITSM-2367,Requester,2026-07-19 10:00:00,When can I expect an update?,false
+CMT-00272,ITSM-2273,Service Desk,2026-07-04 11:00:00,"Assigned to me, investigating.",true
+CMT-00273,ITSM-2273,Ravi Menon,2026-07-17 10:00:00,"This is urgent, I am blocked.",true
+CMT-00274,ITSM-2410,Requester,2026-07-05 15:00:00,Applied standard workaround from KB.,true
+CMT-00275,ITSM-2410,Ravi Menon,2026-07-13 09:00:00,"Still not working, please advise.",true
+CMT-00276,ITSM-2410,Noah Fischer,2026-07-24 10:00:00,Closing as resolved.,true
+CMT-00277,ITSM-2164,Ravi Menon,2026-07-24 09:00:00,"Thanks, that resolved it.",true

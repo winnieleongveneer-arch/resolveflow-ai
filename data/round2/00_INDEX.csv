@@ -1,0 +1,7 @@
+Workbook_Contents
+Autopilot Asia — Customer Support (Stalled-Ticket Command Center) enterprise export — Round 2
+System of origin: Jira Service Management (all-fields CSV export)
+"Sheets: Issues, Users_Directory, Assets_Access, Knowledge_Base, Ticket_Comments, CSAT_Surveys, Change_Requests, Incident_Problem_Links, SLA_Calendar, Team_Roster, Field_Dictionary"
+"Round 2: multi-channel correlated queue with major incidents, threaded comments, CSAT, change approvals and an SLA calendar. Superset of Round 1 (all R1 rows preserved)."
+Fully synthetic. Import into your own ticket system + access register + KB + update channel.
+Judging runs on a separate hidden set; do not hardcode.

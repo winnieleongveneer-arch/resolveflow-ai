@@ -1,0 +1,12 @@
+Sheet,Description,Class
+Issues,"JSM all-fields issue export. New R2 columns: x_channel (email/chat/portal), x_escalation_risk, x_reopened, first_response_time, linked_incident (blank for most), x_confidence. customfield_10030=SLA text, customfield_10101=Assignment group.",transactional
+Users_Directory,Reporter directory. x_vip drives prioritization. R2 adds multilingual + VIP users.,master
+Assets_Access,JSM Assets/Insight access objects. status Active/Pending/Revoked.,master
+Knowledge_Base,KB articles. x_auto_safe = safe to auto-remediate.,master
+Ticket_Comments,Conversation thread per ticket. is_internal true/false; multiple rows per ticket.,transactional
+CSAT_Surveys,Satisfaction survey per resolved ticket. score 1-5; some blank = non-response.,transactional
+Change_Requests,Changes needing approval before touching production. cab_approval_required + status incl Rolled Back.,transactional
+Incident_Problem_Links,Links child tickets to a parent incident/problem. relationship: is caused by / relates to / duplicates.,transactional
+SLA_Calendar,"Business hours, timezone and holiday dates per region; use to compute SLA correctly, not raw elapsed time.",master
+Team_Roster,"Teams, members, on_call flag, assignment_group (aligns to customfield_10101).",master
+SEEDED TRAP TYPES,stalled provisioning ticket - recurring known-error across users (VPN/SSO) - mis-routed ticket bouncing wrong assignment groups - VIP after-hours near SLA breach - MAJOR INCIDENT flood one root cause (INC-9001) - change/CAB approval required before fix - failed remediation rolled back - duplicate tickets same user - same issue in different languages (EN/ES/ZH/FR),note
