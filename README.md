@@ -6,6 +6,42 @@ Build an intelligent, multi-agent command center that automates business process
 
 ---
 
+## ResolveFlow NEXUS — Autopilot Asia 2026, Round 2
+
+A service desk that runs itself, but only as far as it is allowed to. Every
+action an Operator proposes is checked against a policy **before** it runs, and
+the reason for each verdict is stored with the configuration that produced it.
+
+**What a clean clone gives you.** Follow the steps below and the Command Center
+starts, the migrations run, and `pytest` passes 72 tests. The dashboard will be
+empty, and that is expected: the ticket data lives in Supabase, not in this
+repository.
+
+**What needs credentials.** To see the system work against real data you need
+your own values in `.env` — the template's "works out of the box" note below
+applies to the starter kit, not to this build:
+
+| Variable | What it is for |
+|---|---|
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | the ticket backlog, knowledge base, user directory — the system of record |
+| `PUBLIC_BACKEND_URL` | a public URL for this backend, so Operators running on Supervity Auto can reach the policy gate |
+| `SUPERVITY_WORKFLOW_API_KEY` | reading workflow state from Auto |
+| `SLACK_WEBHOOK_URL` | human escalation |
+
+Outlook needs nothing here: it is authenticated by Auto's connector, and this
+Command Center never holds that token.
+
+**The Operators** that do the work are in [`operators/`](operators/), exported
+from Supervity Auto with a README explaining each one and which of them pass
+through the policy gate.
+
+**Worth looking at first:** open any run's Decision Passport. It states what
+happened, why, which policy decided it, whether a human was involved, and
+whether anything outside this system was modified — with the policy
+configuration as it stood at that moment.
+
+---
+
 ## Prerequisites
 
 Before you begin, make sure you have these installed on your machine:
