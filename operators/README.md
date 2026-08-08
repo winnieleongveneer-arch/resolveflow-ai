@@ -32,9 +32,12 @@ instances — the defaults are from the build these were exported from.
 ## Round 1 and Round 2
 
 RF-01, RF-02 and RF-04 began as Round 1 Operators and were rebuilt for the Round 2
-schema: lowercase column names, no configuration table, and the service_role JWT
-used directly instead of a Supabase Management API round trip. RF-04's rebuild is
-included here but was never imported, so the Operator running on Auto is still the
-Round 1 version and does not work against Round 2 data. That is stated rather than
-hidden because it is the sort of thing a reader would otherwise discover the hard
-way.
+schema: lowercase column names, no configuration table, and every Supabase read
+performed over httpx with the connector-injected token rather than through the
+`supabase` client, which failed in this platform's execution environment.
+
+RF-01, RF-02, RF-03, RF-05, RF-06 and the Supervisor were all run against the
+Round 2 dataset on build day and completed. RF-04's rebuild is included here but
+was never imported, so the Operator running on Auto is still the Round 1 version
+and does not work against Round 2 data. That is stated rather than hidden because
+it is the sort of thing a reader would otherwise discover the hard way.
