@@ -20,6 +20,7 @@ Sections:
 from __future__ import annotations
 
 import csv, os, sys, json, collections
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -150,7 +151,9 @@ for s, n in collections.Counter(r.status for r in runs).most_common():
 # ---------------------------------------------------------------- D
 rule("D. TESTED TICKETS — reconstructed from stored records  (Phase 8)")
 for key in TESTED:
-    rs = sorted(by_issue.get(key, []), key=lambda r: r.started_at or 0)
+    # 0 is not orderable against a tz-aware datetime; one run with a
+    # NULL started_at would crash the whole audit.
+    rs = sorted(by_issue.get(key, []), key=lambda r: r.started_at or datetime.min.replace(tzinfo=timezone.utc))
     print(f"\n  ---- {key}  ({len(rs)} attempt(s)) ----")
     if not rs:
         print("     no runs recorded"); continue

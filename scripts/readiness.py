@@ -88,7 +88,9 @@ for (issue, key), group in by_issue.items():
     verdicts = {e.verdict for e in group}
     versions = {e.policy_version for e in group}
     if len(verdicts) > 1 and len(versions) > 1:
-        ordered = sorted(group, key=lambda e: e.evaluated_at or datetime.min)
+        # A NULL evaluated_at would otherwise be compared against a naive
+        # datetime.min while its siblings are tz-aware, which raises.
+        ordered = sorted(group, key=lambda e: e.evaluated_at or datetime.min.replace(tzinfo=timezone.utc))
         # Show the pair that actually DIFFERS, not simply the first and last.
         # Reverting a threshold makes the ends agree again, and a PASS whose
         # evidence reads "v1 -> X then v3 -> X" looks like a broken check to
@@ -122,7 +124,7 @@ items = db.query(WorkbenchItem).all()
 decided = [i for i in items if i.human_decision]
 pending = [i for i in items if i.status == WorkbenchStatus.PENDING]
 if decided:
-    d = sorted(decided, key=lambda i: i.decided_at or datetime.min)[-1]
+    d = sorted(decided, key=lambda i: i.decided_at or datetime.min.replace(tzinfo=timezone.utc))[-1]
     notified = "notified" if (d.notification_ref or "").startswith("slack") else "NOT notified"
     record("A real exception was decided by a person", PASS,
            f"{d.issue_key}: {d.human_decision} by {d.reviewer or 'unnamed'}",
