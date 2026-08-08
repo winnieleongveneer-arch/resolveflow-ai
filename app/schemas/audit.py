@@ -10,7 +10,7 @@ Supports both:
 from datetime import datetime
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class AuditLogResponse(BaseModel):
@@ -61,8 +61,7 @@ class AuditLogResponse(BaseModel):
     response_time_ms: Optional[float] = None
     is_middleware: bool = False
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AuditLogListResponse(BaseModel):
