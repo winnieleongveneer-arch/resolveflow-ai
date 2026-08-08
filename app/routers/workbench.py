@@ -129,8 +129,13 @@ def _create_item(
         item.notification_ref = (
             "slack:delivered" if delivery.get("delivered") else "slack:failed"
         )
+        # The Command Center sent this Slack message, not an Operator. Naming
+        # an Operator here made the dashboard credit work to RF-06 that RF-06
+        # had not done - and for a while, to an RF-06 that did not exist.
+        # WORKBENCH is excluded from Operator counts, which is correct: this
+        # is the Command Center escalating, not an agent acting.
         _event(
-            db, run_id, "RF-06 Change and Recovery Controller", "NOTIFICATION_SENT",
+            db, run_id, "WORKBENCH", "NOTIFICATION_SENT",
             {"channel": "slack", **delivery},
         )
         db.commit()

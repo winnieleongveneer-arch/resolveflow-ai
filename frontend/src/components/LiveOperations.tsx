@@ -223,6 +223,17 @@ export function LiveOperations() {
                     </Link>
                     <p className='truncate text-xs text-muted-foreground'>
                       {run.started_at ? new Date(run.started_at).toLocaleString() : '—'}
+                      {/*
+                        The run id, short enough to read aloud. A ticket key is
+                        not unique across attempts — ITSM-2231 has been run four
+                        times — so without this there is no way to say which run
+                        a Passport, a Slack message or an Auto execution refers
+                        to. Eight characters is enough to match by eye and short
+                        enough not to crowd the row.
+                      */}
+                      <span className='ml-2 font-mono opacity-60'>
+                        run {run.id.slice(0, 8)}
+                      </span>
                     </p>
                   </div>
                   <span

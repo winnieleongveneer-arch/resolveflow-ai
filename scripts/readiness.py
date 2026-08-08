@@ -89,9 +89,23 @@ for (issue, key), group in by_issue.items():
     versions = {e.policy_version for e in group}
     if len(verdicts) > 1 and len(versions) > 1:
         ordered = sorted(group, key=lambda e: e.evaluated_at or datetime.min)
+        # Show the pair that actually DIFFERS, not simply the first and last.
+        # Reverting a threshold makes the ends agree again, and a PASS whose
+        # evidence reads "v1 -> X then v3 -> X" looks like a broken check to
+        # anyone reading it — which is worse than no evidence at all.
+        pair = None
+        for a in range(len(ordered)):
+            for b in range(len(ordered) - 1, a, -1):
+                if (ordered[a].verdict != ordered[b].verdict
+                        and ordered[a].policy_version != ordered[b].policy_version):
+                    pair = (ordered[a], ordered[b])
+                    break
+            if pair:
+                break
+        first, second = pair if pair else (ordered[0], ordered[-1])
         flip = (issue, key,
-                f"v{ordered[0].policy_version} -> {ordered[0].verdict}",
-                f"v{ordered[-1].policy_version} -> {ordered[-1].verdict}")
+                f"v{first.policy_version} -> {first.verdict}",
+                f"v{second.policy_version} -> {second.verdict}")
         break
 if flip:
     record("A changed threshold alters a later run", PASS,
