@@ -12,10 +12,16 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class RunCreate(BaseModel):
-    issue_key: str = Field(..., examples=["ITSM-2180"])
-    trigger_source: str = Field("command_center", examples=["command_center"])
+    # These lengths mirror the columns exactly: issue_key and trigger_source are
+    # String(64), idempotency_key is String(255). Without them an over-long value
+    # passes validation, reaches Postgres, and raises a DataError nothing catches
+    # - so the caller gets a 500 for what is plainly a bad request. Rejecting it
+    # here returns 422 and says which field was wrong.
+    issue_key: str = Field(..., min_length=1, max_length=64, examples=["ITSM-2180"])
+    trigger_source: str = Field("command_center", max_length=64,
+                                examples=["command_center"])
     trigger_payload: Optional[Dict[str, Any]] = None
-    idempotency_key: Optional[str] = None
+    idempotency_key: Optional[str] = Field(None, max_length=255)
 
 
 class RunOut(BaseModel):
