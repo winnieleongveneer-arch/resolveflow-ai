@@ -325,6 +325,14 @@ def _auto_execution_failing(db: Session) -> Optional[str]:
     if launched_by_us:
         return None
     total = db.query(WorkflowRun).count()
+    # Operators report their own run id from inside Auto, so this is no longer
+    # zero - and the sentence below said "0" as a literal, which made the card
+    # contradict readiness.py. Count it.
+    with_id = (
+        db.query(WorkflowRun)
+        .filter(WorkflowRun.auto_run_id.isnot(None))
+        .count()
+    )
     # Be precise about WHAT is degraded. Auto executes workflows perfectly well
     # - the Supervisor ran four steps through it today. What fails is one
     # direction: this Command Center calling Auto's execute endpoint from
@@ -334,10 +342,12 @@ def _auto_execution_failing(db: Session) -> Optional[str]:
         "Reads succeed (GET /api/v1/workflows) and Auto executes workflows "
         "normally when they are started from its own UI. What fails is "
         "outbound invocation: POST /api/v1/workflow-runs/execute returns "
-        f"HTTP 500 for every payload shape tried - {failures} failure(s) "
-        f"recorded, and 0 of {total} runs carry an Auto run id. Operators are "
-        "started from the Auto UI instead, which affects how a run begins, "
-        "not what it does."
+        f"HTTP 500 for every payload shape tried, {failures} failure(s) "
+        "recorded. No run has ever been started by this Command Center. "
+        f"{with_id} of {total} runs carry an Auto run id, reported by the "
+        "Operators themselves from inside their own execution - so a case can "
+        "still be traced to the Auto run behind it. Operators are started from "
+        "the Auto UI, which affects how a run begins, not what it does."
     )
 
 
