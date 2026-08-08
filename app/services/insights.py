@@ -438,34 +438,77 @@ def _missing_evidence_pattern(db: Session) -> List[Dict[str, Any]]:
 
 
 def _automation_rate(db: Session) -> List[Dict[str, Any]]:
-    """How much is actually being handled without a human?"""
+    """
+    How much did the agent actually finish on its own?
+
+    The earlier version divided runs-with-no-Workbench-item by all runs and
+    called the result "completed without a human decision". That counted every
+    escalation, every policy refusal and every platform failure as a
+    completion, and produced 98% while the outcome ledger held three verified
+    resolutions. A number that flatters the build by redefining the word
+    "completed" is worse than no number: the Dashboard already reports the
+    honest one, and the two would contradict each other in front of anyone
+    reading both pages.
+
+    So count what the ledger counts: verified resolutions, split by whether a
+    person had to touch them.
+    """
     total = db.query(func.count(WorkflowRun.id)).scalar() or 0
     if total < 5:
         return []
-    needed_human = (
-        db.query(func.count(func.distinct(WorkbenchItem.run_id))).scalar() or 0
+
+    try:
+        from ..models.service_desk import OutcomeLedger
+        rows = db.query(OutcomeLedger).filter(OutcomeLedger.verified.is_(True)).all()
+    except Exception:
+        return []
+
+    resolved = len(rows)
+    if not resolved:
+        return []
+    auto = len([r for r in rows if r.outcome == "AUTO_RESOLVED"])
+    assisted = resolved - auto
+    # One decimal, matching the Dashboard tile exactly. 67 and 66.7 are the
+    # same number, but two pages of one app disagreeing by a rounding step is
+    # a question nobody should have to ask.
+    rate = round(auto / resolved * 100, 1)
+
+    # Use the Dashboard's definition, not a second one: a case is open when
+    # NO run for that issue key has reached a terminal state. Counting keys
+    # whose latest run is non-terminal instead gave 122 against the tile's
+    # 117, because a ticket that escalated once and later resolved counts as
+    # closed there and open here. One definition, or the two screens argue.
+    open_cases = (
+        db.query(func.count(func.distinct(WorkflowRun.issue_key)))
+        .filter(WorkflowRun.issue_key.notin_(
+            db.query(WorkflowRun.issue_key).filter(
+                WorkflowRun.status.in_([RunStatus.RESOLVED, RunStatus.DENIED,
+                                        RunStatus.FAILED]))))
+        .scalar() or 0
     )
-    autonomous = max(total - needed_human, 0)
-    rate = round(autonomous / total * 100)
-    severity = SEV_HIGH if rate < 25 else SEV_LOW
+
     return [_insight(
         key="automation-rate",
-        title=f"{rate}% of cases completed without a human decision",
+        title=f"{rate}% of verified resolutions ran unattended",
         type_="automation_opportunity",
-        severity=severity,
+        severity=SEV_LOW,
         evidence=[
-            f"{total} runs processed.",
-            f"{needed_human} required a Workbench decision.",
-            f"{autonomous} completed under policy alone.",
+            f"{resolved} verified resolution(s) on the ledger.",
+            f"{auto} completed with no human decision; {assisted} needed one.",
+            f"{total} runs recorded in total, of which {open_cases} case(s) "
+            "are still open. A refusal or an escalation is not a resolution "
+            "and is not counted here.",
         ],
         affected=[],
         implication=(
-            "This is the headline autonomy number. Every point of improvement "
-            "is service desk capacity returned to the team."
+            "This counts only work the system of record confirmed. Runs that "
+            "escalated, were refused by policy, or failed on the platform are "
+            "deliberately excluded, so this number cannot be inflated by the "
+            "agent declining to act."
         ),
         recommendation=(
-            "Look at which policy sends the most work to humans and whether "
-            "those reviews are routinely approved unchanged."
+            "Raise it by clearing the knowledge gaps that force escalation, "
+            "not by relaxing the policies that force review."
         ),
         action_label="Open AI Policies",
         action_href="/ai/policies",
