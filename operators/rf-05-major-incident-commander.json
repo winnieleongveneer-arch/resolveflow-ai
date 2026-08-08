@@ -1,0 +1,146 @@
+{
+  "exportFormatVersion": 1,
+  "exportedAt": "2026-08-07T00:00:00.000Z",
+  "rootWorkflowId": "8ad9d16c-9178-4778-ad40-b4e62b3f8323",
+  "versionExportMode": "all",
+  "workflows": [
+    {
+      "sourceWorkflowId": "8ad9d16c-9178-4778-ad40-b4e62b3f8323",
+      "sourceDefaultVersionNumber": 1,
+      "versions": [
+        {
+          "sourceVersionId": "0e1073ba-3820-46de-ad8a-c5a812a9bbd8",
+          "versionNumber": 1,
+          "commitMessage": "v1 - correlate from recorded incident links, compute the detection window across three date formats, gate on major_incident_declaration before declaring.",
+          "definition": {
+            "name": "RF-05 Major Incident Commander",
+            "description": "Decides whether a ticket is the visible edge of one event rather than an isolated fault. Correlates from recorded incident links first and text similarity only as a fallback, computes the detection window across the three date formats the export carries, and asks the policy gate before declaring anything.",
+            "business_functions": [
+              "IT Service Management",
+              "Customer Support"
+            ],
+            "envs": [
+              {
+                "name": "SUPABASE_TOKEN",
+                "description": "Supabase service_role JWT or personal access token."
+              }
+            ],
+            "inputs": [
+              {
+                "name": "issue_key",
+                "description": "The ticket to assess.",
+                "type": "text",
+                "label": "Issue Key",
+                "required": true,
+                "default": ""
+              },
+              {
+                "name": "run_id",
+                "description": "Command Center run id.",
+                "type": "text",
+                "label": "Command Center Run ID",
+                "required": true,
+                "default": ""
+              },
+              {
+                "name": "supabase_url",
+                "description": "Supabase Project URL.",
+                "type": "url",
+                "label": "Supabase URL",
+                "required": true,
+                "default": "https://lobcaobmdeihbbgxnuel.supabase.co"
+              },
+              {
+                "name": "command_center_url",
+                "description": "Public base URL of the Command Center.",
+                "type": "url",
+                "label": "Command Center URL",
+                "required": true,
+                "default": "https://untracked-drilling-slinky.ngrok-free.dev"
+              }
+            ],
+            "start_at": [
+              "fetch_cluster"
+            ],
+            "pip_packages": [
+              "httpx",
+              "python-dateutil"
+            ],
+            "integration_overrides": {},
+            "steps": [
+              {
+                "id": "fetch_cluster",
+                "name": "Read the Ticket and the Backlog",
+                "description": "Pull the ticket, the backlog and the recorded incident links.",
+                "agent_prompt": "Fetch the ticket named by issue_key, the whole issues table and the incident_problem_links table. Store them in rf05_ticket, rf05_backlog and rf05_links.",
+                "services": [
+                  "supabase"
+                ],
+                "depends_on": [],
+                "code_cell": "import os\nimport httpx\nimport json\nimport sys\nfrom IPython.display import HTML, display\n\nasync def _resolve_service_key(supabase_url, token):\n    if token and token.startswith(\"eyJ\"):\n        return token\n    project_ref = supabase_url.split(\"//\")[1].split(\".\")[0]\n    async with httpx.AsyncClient(timeout=20.0) as client:\n        resp = await client.get(\n            f\"https://api.supabase.com/v1/projects/{project_ref}/api-keys\",\n            headers={\"Authorization\": f\"Bearer {token}\"},\n        )\n        resp.raise_for_status()\n        for k in resp.json():\n            if k.get(\"name\") == \"service_role\":\n                return k.get(\"api_key\")\n    raise Exception(\"Could not resolve a Supabase service_role key from SUPABASE_TOKEN.\")\n\n\ndef _get(row, *names):\n    for n in names:\n        for candidate in (n, n.lower(), n.replace(\" \", \"_\"), n.replace(\"_\", \" \")):\n            if candidate in row and row[candidate] not in (None, \"\"):\n                return row[candidate]\n    return None\n\n\nasync def step_fetch_cluster_run():\n    \"\"\"\n    Pull the ticket and everything that might belong to the same event.\n\n    The whole backlog is read once rather than guessing a filter, because the\n    correlation has to be computed from recorded facts — an incident link, a\n    shared summary, arrival times — not from the ticket key.\n    \"\"\"\n    supabase_url = (user_inputs.get(\"supabase_url\") or \"\").rstrip(\"/\")\n    issue_key = (user_inputs.get(\"issue_key\") or \"\").strip()\n    token = os.environ.get(\"SUPABASE_TOKEN\")\n    if not issue_key:\n        raise ValueError(\"Input 'issue_key' is required.\")\n\n    key = await _resolve_service_key(supabase_url, token)\n    headers = {\"apikey\": key, \"Authorization\": f\"Bearer {key}\",\n               \"Accept\": \"application/json\"}\n\n    ticket, backlog, links = None, [], []\n    async with httpx.AsyncClient(timeout=30.0) as client:\n        for col in (\"issue_key\", \"Issue key\"):\n            r = await client.get(f\"{supabase_url}/rest/v1/issues\",\n                                 params={\"select\": \"*\", col: f\"eq.{issue_key}\"},\n                                 headers=headers)\n            if r.status_code == 200 and r.json():\n                ticket = r.json()[0]\n                break\n        if ticket is None:\n            raise Exception(f\"Ticket {issue_key} does not exist in the system of record.\")\n\n        r = await client.get(f\"{supabase_url}/rest/v1/issues\",\n                             params={\"select\": \"*\", \"limit\": \"2000\"}, headers=headers)\n        backlog = r.json() if r.status_code == 200 else []\n\n        r = await client.get(f\"{supabase_url}/rest/v1/incident_problem_links\",\n                             params={\"select\": \"*\", \"limit\": \"2000\"}, headers=headers)\n        links = r.json() if r.status_code == 200 else []\n\n    globals()[\"rf05_ticket\"] = ticket\n    globals()[\"rf05_backlog\"] = backlog\n    globals()[\"rf05_links\"] = links\n\n    display(HTML(f\"\"\"\n    <div class=\"ag-root\"><div class=\"ag-card\">\n      <h2 class=\"ag-h2\">Incident intake — {issue_key}</h2>\n      <p class=\"ag-body\">{_get(ticket, 'Summary', 'summary')}</p>\n      <p class=\"ag-body\">Read <span class=\"ag-metric\">{len(backlog)}</span> backlog\n      tickets and <span class=\"ag-metric\">{len(links)}</span> incident links to\n      compute the correlation from recorded facts.</p>\n    </div></div>\n    \"\"\"))\n\nawait step_fetch_cluster_run()\n",
+                "next_steps": [
+                  {
+                    "step_id": "correlate"
+                  }
+                ]
+              },
+              {
+                "id": "correlate",
+                "name": "Correlate the Cluster",
+                "description": "Count correlated tickets, compute the detection window and a stated correlation confidence.",
+                "agent_prompt": "Use recorded incident_problem_links parentage first; only if none exists, fall back to summary similarity at 0.8 overlap and say so. Parse Created across 'Jul 14 2026', ISO and '12/07/2026' formats; return None for anything unparseable rather than guessing, and discount the confidence when timestamps are missing. Store rf05_cluster.",
+                "services": [],
+                "depends_on": [
+                  "fetch_cluster"
+                ],
+                "code_cell": "import json\nimport re\nimport sys\nfrom datetime import datetime\nfrom IPython.display import HTML, display\n\nSTOPWORDS = {\"the\",\"a\",\"an\",\"and\",\"or\",\"for\",\"to\",\"of\",\"in\",\"on\",\"is\",\"are\",\"was\",\n             \"with\",\"at\",\"by\",\"from\",\"as\",\"it\",\"this\",\"that\",\"see\",\"summary\",\n             \"standard\",\"request\",\"issue\",\"ticket\",\"user\",\"cannot\",\"can\",\"unable\"}\n\n\ndef _tokens(text):\n    return {w for w in re.split(r\"[^a-z0-9]+\", str(text or \"\").lower())\n            if len(w) > 2 and w not in STOPWORDS}\n\n\ndef _parse_created(value):\n    \"\"\"\n    Parse Created across the three formats the export carries on purpose:\n    'Jul 14 2026', ISO '2026-07-15 09:03:00' and '12/07/2026'.\n\n    Returns (datetime_or_None, has_time_of_day).\n\n    The second half matters more than the first. A date-only value carries no\n    arrival time, and normalising it to midnight INVENTS one. Doing that here\n    widened the detection window on the seeded incident from 24 minutes to 567\n    and made the event undeclarable. So a value that does not state a time is\n    reported as having no time rather than being silently set to 00:00.\n    \"\"\"\n    text = str(value or \"\").strip()\n    if not text:\n        return None, False\n    for fmt in (\"%b %d %Y\", \"%Y-%m-%d %H:%M:%S\", \"%Y-%m-%dT%H:%M:%S\",\n                \"%d/%m/%Y\", \"%Y-%m-%d\"):\n        try:\n            parsed = datetime.strptime(text[:19], fmt)\n        except ValueError:\n            continue\n        # No colon in the source means no time was recorded. Exact midnight is\n        # the same thing wearing a timestamp's clothes: it is what a date-only\n        # field becomes when a loader normalises it.\n        stated = (\":\" in text) and not (\n            parsed.hour == 0 and parsed.minute == 0 and parsed.second == 0)\n        return parsed, stated\n    return None, False\n\n\nasync def step_correlate_run():\n    ticket = globals()[\"rf05_ticket\"]\n    backlog = globals()[\"rf05_backlog\"]\n    links = globals()[\"rf05_links\"]\n\n    key = _get(ticket, \"issue_key\", \"Issue key\")\n\n    # --- 1. recorded parentage beats any similarity heuristic --------------\n    parent = None\n    children = set()\n    for l in links:\n        if l.get(\"child_issue_key\") == key:\n            parent = l.get(\"parent_incident_key\")\n    anchor = parent or key\n    for l in links:\n        if l.get(\"parent_incident_key\") == anchor:\n            children.add(l.get(\"child_issue_key\"))\n    linked_field = _get(ticket, \"linked_incident\", \"cluster_id\")\n\n    cluster_keys = set(children) | {anchor}\n    basis = (\"recorded incident links\" if children\n             else \"no recorded links; falling back to text similarity\")\n\n    # --- 2. similarity fallback, only if parentage said nothing ------------\n    # A major incident is a BURST, not a theme. \"Printer offline\" appears 43\n    # times across three weeks; correlating on wording alone turned 448 of 462\n    # tickets into incidents. Similarity therefore has to be paired with\n    # arrival times that are actually close together.\n    BURST_MINUTES = 60.0\n    t_tokens = _tokens(_get(ticket, \"Summary\", \"summary\"))\n    anchor_time, anchor_stated = _parse_created(_get(ticket, \"Created\", \"created\"))\n    if not children and t_tokens:\n        for row in backlog:\n            other = _get(row, \"issue_key\", \"Issue key\")\n            if other == key:\n                continue\n            o_tokens = _tokens(_get(row, \"Summary\", \"summary\"))\n            if not o_tokens:\n                continue\n            overlap = len(t_tokens & o_tokens) / max(len(t_tokens), len(o_tokens))\n            if overlap < 0.8:\n                continue\n            # Without two stated arrival times we cannot show a burst, so we do\n            # not claim one.\n            other_time, other_stated = _parse_created(_get(row, \"Created\", \"created\"))\n            if not (anchor_stated and other_stated):\n                continue\n            if abs((other_time - anchor_time).total_seconds()) / 60.0 <= BURST_MINUTES:\n                cluster_keys.add(other)\n\n    cluster = [r for r in backlog\n               if _get(r, \"issue_key\", \"Issue key\") in cluster_keys]\n    correlated_count = len(cluster)\n\n    # --- 3. detection window, from STATED arrival times only --------------\n    stamps, no_time = [], []\n    for r in cluster:\n        parsed, stated = _parse_created(_get(r, \"Created\", \"created\"))\n        if parsed is not None and stated:\n            stamps.append(parsed)\n        else:\n            no_time.append(_get(r, \"issue_key\", \"Issue key\"))\n    unparsed = len(no_time)\n    if len(stamps) >= 2:\n        window_minutes = round((max(stamps) - min(stamps)).total_seconds() / 60.0, 1)\n    else:\n        window_minutes = 0.0\n\n    # --- 4. correlation confidence, and why -------------------------------\n    # Recorded parentage is near-certain. Text similarity is not, and saying so\n    # is what lets the policy hold the case back rather than declare it.\n    if children:\n        correlation_confidence = 0.95\n        conf_basis = f\"{len(children)} tickets are recorded as caused by {anchor}.\"\n    elif correlated_count >= 2:\n        correlation_confidence = 0.70\n        conf_basis = (\"Correlation inferred from summary similarity alone; no \"\n                      \"incident link is recorded.\")\n    else:\n        correlation_confidence = 0.0\n        conf_basis = \"Nothing correlates with this ticket.\"\n\n    if unparsed:\n        conf_basis += (\n            f\" {unparsed} of {correlated_count} tickets record no arrival time; \"\n            f\"the {window_minutes}-minute window is measured across the \"\n            f\"{len(stamps)} that do. No midnight was substituted for a missing \"\n            \"time — doing so would have widened this window twentyfold.\")\n\n    shared_root = None\n    summaries = {str(_get(r, \"Summary\", \"summary\") or \"\") for r in cluster}\n    if len(summaries) == 1 and correlated_count > 1:\n        shared_root = summaries.pop()\n\n    globals()[\"rf05_cluster\"] = {\n        \"anchor\": anchor,\n        \"parent\": parent,\n        \"linked_incident\": linked_field,\n        \"correlated_ticket_count\": correlated_count,\n        \"detection_window_minutes\": window_minutes,\n        \"correlation_confidence\": correlation_confidence,\n        \"shared_system\": _get(ticket, \"Components\", \"components\"),\n        \"shared_root_cause\": shared_root,\n        \"basis\": basis,\n        \"confidence_basis\": conf_basis,\n        \"tickets_without_arrival_time\": unparsed,\n        \"tickets_used_for_window\": len(stamps),\n        \"members\": sorted(cluster_keys)[:40],\n    }\n\n    display(HTML(f\"\"\"\n    <div class=\"ag-root\"><div class=\"ag-card\">\n      <h2 class=\"ag-h2\">Correlation</h2>\n      <table class=\"ag-table\"><tbody>\n        <tr><td>Correlated tickets</td><td><span class=\"ag-metric\">{correlated_count}</span></td></tr>\n        <tr><td>Detection window</td><td><span class=\"ag-metric\">{window_minutes}</span> minutes\n          <br><span class=\"ag-muted\">measured across {len(stamps)} stated arrival times; {unparsed} ticket(s) record none</span></td></tr>\n        <tr><td>Correlation confidence</td><td><span class=\"ag-metric\">{correlation_confidence}</span></td></tr>\n        <tr><td>Parent incident</td><td>{parent or 'none recorded'}</td></tr>\n        <tr><td>Shared root cause</td><td>{shared_root or 'not established'}</td></tr>\n      </tbody></table>\n      <p class=\"ag-body\">{conf_basis}</p>\n      <p class=\"ag-muted\">Basis: {basis}.</p>\n    </div></div>\n    \"\"\"))\n\nawait step_correlate_run()\n",
+                "next_steps": [
+                  {
+                    "step_id": "declare_gate"
+                  }
+                ]
+              },
+              {
+                "id": "declare_gate",
+                "name": "Ask the Policy Gate to Declare",
+                "description": "Call the gate with major_incident_declaration before anything is declared.",
+                "agent_prompt": "POST to the Command Center gate with policy_key 'major_incident_declaration' and a context carrying correlated_ticket_count, detection_window_minutes, correlation_confidence, shared_system and shared_root_cause. Store rf05_gate. Never declare without a verdict.",
+                "services": [],
+                "depends_on": [
+                  "correlate"
+                ],
+                "code_cell": "import os\nimport httpx\nimport json\nimport sys\nfrom IPython.display import HTML, display\n\n\nasync def step_declare_gate_run():\n    \"\"\"\n    Declaring a major incident pages people and freezes change. RF-05 proposes;\n    the policy decides.\n    \"\"\"\n    base = (user_inputs.get(\"command_center_url\") or \"\").rstrip(\"/\")\n    run_id = (user_inputs.get(\"run_id\") or \"\").strip()\n    issue_key = (user_inputs.get(\"issue_key\") or \"\").strip()\n    if not run_id:\n        raise ValueError(\"Input 'run_id' is required so the verdict is auditable.\")\n\n    c = globals()[\"rf05_cluster\"]\n    ticket = globals()[\"rf05_ticket\"]\n\n    body = {\n        \"run_id\": run_id,\n        \"policy_key\": \"major_incident_declaration\",\n        \"issue_key\": issue_key,\n        \"request_type\": \"MAJOR_INCIDENT_DECLARATION\",\n        \"context\": {\n            \"correlated_ticket_count\": c[\"correlated_ticket_count\"],\n            \"detection_window_minutes\": c[\"detection_window_minutes\"],\n            \"correlation_confidence\": c[\"correlation_confidence\"],\n            \"shared_system\": c[\"shared_system\"],\n            \"shared_root_cause\": c[\"shared_root_cause\"],\n        },\n        \"proposed_action\": {\n            \"description\": (f\"Declare a major incident covering \"\n                            f\"{c['correlated_ticket_count']} tickets under {c['anchor']}.\"),\n            \"risk\": \"High\",\n            \"blast_radius\": c[\"correlated_ticket_count\"],\n        },\n        \"case_context\": {\n            \"summary\": _get(ticket, \"Summary\", \"summary\"),\n            \"priority\": _get(ticket, \"Priority\", \"priority\"),\n            \"parent_incident\": c[\"parent\"],\n            \"correlation_basis\": c[\"basis\"],\n            \"confidence_basis\": c[\"confidence_basis\"],\n            \"tickets_without_arrival_time\": c[\"tickets_without_arrival_time\"],\n            \"tickets_used_for_window\": c[\"tickets_used_for_window\"],\n            \"members\": c[\"members\"],\n        },\n        \"agent_recommendation\": (\n            f\"Declare a major incident: {c['confidence_basis']}\"),\n        \"verification_plan\": {\"steps\": (\n            \"Confirm the child tickets stop arriving once the root cause is \"\n            \"addressed, and that the parent incident is updated.\")},\n        \"rollback_plan\": {\"steps\": (\n            \"Retract the declaration and return the child tickets to individual \"\n            \"triage.\")},\n        \"notify\": True,\n    }\n\n    async with httpx.AsyncClient(timeout=30.0) as client:\n        resp = await client.post(f\"{base}/api/agent/gate\", json=body,\n                                 headers={\"Content-Type\": \"application/json\",\n                                          \"ngrok-skip-browser-warning\": \"1\"})\n        if resp.status_code >= 400:\n            raise Exception(f\"Policy gate returned HTTP {resp.status_code}: {resp.text[:400]}\")\n        gate = resp.json()\n\n    globals()[\"rf05_gate\"] = gate\n    reasons = \"\".join(f\"<li>{r}</li>\" for r in gate.get(\"reasons\", []))\n    tone = {\"ALLOW\": \"ag-badge-neutral\"}.get(gate.get(\"verdict\"), \"ag-badge-warn\")\n    display(HTML(f\"\"\"\n    <div class=\"ag-root\"><div class=\"ag-card\">\n      <h2 class=\"ag-h2\">Declaration verdict</h2>\n      <p class=\"ag-body\"><span class=\"ag-badge {tone}\">{gate.get('verdict')}</span>\n      from <b>{gate.get('policy_key')}</b> v{gate.get('policy_version')}</p>\n      <ul class=\"ag-body\">{reasons}</ul>\n    </div></div>\n    \"\"\"))\n\nawait step_declare_gate_run()\n",
+                "next_steps": [
+                  {
+                    "step_id": "report_outcome"
+                  }
+                ]
+              },
+              {
+                "id": "report_outcome",
+                "name": "Report the Outcome",
+                "description": "Branch on the verdict and report it to the Command Center timeline.",
+                "agent_prompt": "Branch on rf05_gate.verdict and report MAJOR_INCIDENT_DECLARED, AWAITING_HUMAN or DECLARATION_REFUSED with the correlation figures attached.",
+                "services": [],
+                "depends_on": [
+                  "declare_gate"
+                ],
+                "code_cell": "import os\nimport httpx\nimport json\nimport sys\nfrom IPython.display import HTML, display\n\n\nasync def step_report_outcome_run():\n    base = (user_inputs.get(\"command_center_url\") or \"\").rstrip(\"/\")\n    run_id = (user_inputs.get(\"run_id\") or \"\").strip()\n    gate = globals()[\"rf05_gate\"]\n    c = globals()[\"rf05_cluster\"]\n    verdict = gate.get(\"verdict\")\n\n    if verdict == \"ALLOW\":\n        event, status = \"MAJOR_INCIDENT_DECLARED\", \"ok\"\n        headline = (f\"Declared over {c['correlated_ticket_count']} correlated tickets.\")\n    elif verdict == \"REQUIRE_HUMAN_REVIEW\":\n        event, status = \"AWAITING_HUMAN\", \"waiting\"\n        headline = \"Held for an incident manager to confirm.\"\n    else:\n        event, status = \"DECLARATION_REFUSED\", \"denied\"\n        headline = \"Not declared. Tickets stay in individual triage.\"\n\n    async with httpx.AsyncClient(timeout=30.0) as client:\n        await client.post(\n            f\"{base}/api/agent/runs/{run_id}/events\",\n            json={\"operator_name\": \"RF-05 Major Incident Commander\",\n                  \"event_type\": event, \"event_status\": status,\n                  \"payload\": {\"verdict\": verdict,\n                              \"reasons\": gate.get(\"reasons\"),\n                              \"correlated_ticket_count\": c[\"correlated_ticket_count\"],\n                              \"detection_window_minutes\": c[\"detection_window_minutes\"],\n                              \"correlation_confidence\": c[\"correlation_confidence\"],\n                              \"parent_incident\": c[\"parent\"],\n                              \"workbench_item_id\": gate.get(\"workbench_item_id\"),\n                              \"members\": c[\"members\"]}},\n            headers={\"Content-Type\": \"application/json\",\n                     \"ngrok-skip-browser-warning\": \"1\"})\n\n    display(HTML(f\"\"\"\n    <div class=\"ag-root\"><div class=\"ag-card\">\n      <h2 class=\"ag-h2\">Outcome</h2>\n      <p class=\"ag-body\"><b>{verdict}</b> &mdash; {headline}</p>\n      <p class=\"ag-muted\">Reported to the Command Center against run {run_id}.</p>\n    </div></div>\n    \"\"\"))\n\nawait step_report_outcome_run()\n",
+                "next_steps": []
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "schedules": [],
+  "integrationsManifest": {
+    "services": [
+      "supabase"
+    ],
+    "envNames": [
+      "SUPABASE_TOKEN"
+    ]
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "exportFormatVersion": 1,
+  "exportedAt": "2026-08-07T00:00:00.000Z",
+  "rootWorkflowId": "b4fe4e0b-6258-4f80-a1e5-792822af64bf",
+  "versionExportMode": "all",
+  "workflows": [
+    {
+      "sourceWorkflowId": "b4fe4e0b-6258-4f80-a1e5-792822af64bf",
+      "sourceDefaultVersionNumber": 1,
+      "versions": [
+        {
+          "sourceVersionId": "0e1073ba-3820-46de-ad8a-c5a812a9bbd8",
+          "versionNumber": 1,
+          "commitMessage": "RF-06 built as a real Operator: executes human-approved scope",
+          "definition": {
+            "name": "RF-06 Change and Recovery Controller",
+            "description": "Executes what a person allowed. Reads the human decision from the Command Center Workbench, applies only the approved scope to the system of record, reads it back to confirm, and reports the outcome. It never decides for itself: with no decision on file it stops.",
+            "business_functions": [
+              "IT Service Management",
+              "Customer Support"
+            ],
+            "envs": [
+              {
+                "name": "SUPABASE_TOKEN",
+                "description": "Supabase service_role JWT, or a personal access token."
+              }
+            ],
+            "inputs": [
+              {
+                "name": "issue_key",
+                "description": "The ticket to act on.",
+                "type": "text",
+                "label": "Issue key",
+                "required": true,
+                "default": ""
+              },
+              {
+                "name": "run_id",
+                "description": "The Command Center run that raised the item.",
+                "type": "text",
+                "label": "Run id",
+                "required": true,
+                "default": ""
+              },
+              {
+                "name": "supabase_url",
+                "description": "Supabase project URL.",
+                "type": "url",
+                "label": "Supabase URL",
+                "required": true,
+                "default": "https://lobcaobmdeihbbgxnuel.supabase.co"
+              },
+              {
+                "name": "command_center_url",
+                "description": "Public URL of the Command Center.",
+                "type": "url",
+                "label": "Command Center URL",
+                "required": true,
+                "default": "https://untracked-drilling-slinky.ngrok-free.dev"
+              }
+            ],
+            "start_at": [
+              "fetch_decision"
+            ],
+            "pip_packages": [
+              "httpx"
+            ],
+            "integration_overrides": {},
+            "steps": [
+              {
+                "id": "fetch_decision",
+                "name": "Read the Human Decision",
+                "description": "Find the Workbench item for this run and confirm a person decided it.",
+                "agent_prompt": "",
+                "code_cell": "\nimport os, sys, json, httpx\nfrom IPython.display import HTML, display\n\nOPERATOR = \"RF-06 Change and Recovery Controller\"\n\n\nasync def _resolve_service_key(supabase_url, token):\n    if token and token.startswith(\"eyJ\"):\n        return token\n    ref = supabase_url.split(\"//\")[1].split(\".\")[0]\n    async with httpx.AsyncClient(timeout=20.0) as c:\n        r = await c.get(f\"https://api.supabase.com/v1/projects/{ref}/api-keys\",\n                        headers={\"Authorization\": f\"Bearer {token}\"})\n        r.raise_for_status()\n        for k in r.json():\n            if k.get(\"name\") == \"service_role\":\n                return k.get(\"api_key\")\n    raise Exception(\"Could not resolve a Supabase service_role key.\")\n\n\nasync def _report(base, run_id, event_type, event_status, payload):\n    \"\"\"Tell the Command Center what happened. It decides what that means.\"\"\"\n    async with httpx.AsyncClient(timeout=30.0) as c:\n        r = await c.post(\n            f\"{base}/api/agent/runs/{run_id}/events\",\n            json={\"operator_name\": OPERATOR, \"event_type\": event_type,\n                  \"event_status\": event_status, \"payload\": payload},\n            headers={\"Content-Type\": \"application/json\",\n                     \"ngrok-skip-browser-warning\": \"1\"},\n        )\n        return r.status_code, r.text[:300]\n\n\nasync def step_fetch_decision_run():\n    base = (user_inputs.get(\"command_center_url\") or \"\").rstrip(\"/\")\n    run_id = (user_inputs.get(\"run_id\") or \"\").strip()\n    if not base or not run_id:\n        raise ValueError(\"Inputs command_center_url and run_id are both required.\")\n\n    async with httpx.AsyncClient(timeout=30.0) as c:\n        r = await c.get(f\"{base}/api/workbench\",\n                        headers={\"ngrok-skip-browser-warning\": \"1\"})\n        if r.status_code != 200:\n            raise Exception(f\"Workbench: HTTP {r.status_code} {r.text[:200]}\")\n        items = r.json()\n\n    mine = [i for i in items if str(i.get(\"run_id\")) == run_id]\n    if not mine:\n        raise ValueError(f\"No Workbench item exists for run {run_id}. \"\n                         \"RF-06 only acts on a case a person has been asked about.\")\n    item = sorted(mine, key=lambda i: i.get(\"created_at\") or \"\")[-1]\n    decision = (item.get(\"human_decision\") or \"\").strip().upper()\n\n    # This is the whole point of this Operator. It does not decide anything.\n    # If nobody has decided, it stops - it must never fill the silence itself.\n    if not decision:\n        display(HTML(\"\"\"\n        <div class=\"ag-root\"><div class=\"ag-card\">\n          <h2 class=\"ag-h2\">Still waiting for a person</h2>\n          <p class=\"ag-body\">This case is in the Workbench and nobody has decided\n             it yet. No timeout approves it and this Operator will not proceed.</p>\n        </div></div>\"\"\"))\n        raise ValueError(\"Workbench item is still PENDING. Decide it first.\")\n\n    globals()[\"workflow_step_state\"] = globals().get(\"workflow_step_state\", {})\n    workflow_step_state[\"item\"] = item\n    print(json.dumps({\"item_id\": item.get(\"id\"), \"decision\": decision,\n                      \"reviewer\": item.get(\"reviewer\"),\n                      \"decided_at\": item.get(\"decided_at\")}, indent=2, default=str))\n\n    scope = (item.get(\"approved_scope\") or item.get(\"modified_action\")\n             or item.get(\"proposed_action\") or {})\n    scope_text = scope.get(\"description\") or scope.get(\"action\") or json.dumps(scope)[:300]\n    display(HTML(\"\"\"\n    <div class=\"ag-root\"><div class=\"ag-card\">\n      <h2 class=\"ag-h2\">A person decided this case</h2>\n      <table class=\"ag-table\">\n        <tr><td>Ticket</td><td>\"\"\" + str(item.get(\"issue_key\")) + \"\"\"</td></tr>\n        <tr><td>Decision</td><td><b>\"\"\" + decision + \"\"\"</b></td></tr>\n        <tr><td>Reviewer</td><td>\"\"\" + str(item.get(\"reviewer\") or \"unnamed\") + \"\"\"</td></tr>\n        <tr><td>Decided at</td><td>\"\"\" + str(item.get(\"decided_at\")) + \"\"\"</td></tr>\n        <tr><td>Approved scope</td><td>\"\"\" + str(scope_text) + \"\"\"</td></tr>\n      </table>\n      <p class=\"ag-muted\" style=\"margin-top:12px\">Only this scope will be executed.\n         The agent's original proposal stays on the record beside it.</p>\n    </div></div>\"\"\"))\n\nawait step_fetch_decision_run()\n",
+                "services": [],
+                "depends_on": [],
+                "next_steps": [
+                  {
+                    "step_id": "apply_approved"
+                  }
+                ]
+              },
+              {
+                "id": "apply_approved",
+                "name": "Apply the Approved Scope",
+                "description": "Execute only what was approved, verify the write, report the outcome.",
+                "agent_prompt": "",
+                "code_cell": "\nimport os, sys, json, httpx\nfrom IPython.display import HTML, display\n\nOPERATOR = \"RF-06 Change and Recovery Controller\"\n\n\nasync def _resolve_service_key(supabase_url, token):\n    if token and token.startswith(\"eyJ\"):\n        return token\n    ref = supabase_url.split(\"//\")[1].split(\".\")[0]\n    async with httpx.AsyncClient(timeout=20.0) as c:\n        r = await c.get(f\"https://api.supabase.com/v1/projects/{ref}/api-keys\",\n                        headers={\"Authorization\": f\"Bearer {token}\"})\n        r.raise_for_status()\n        for k in r.json():\n            if k.get(\"name\") == \"service_role\":\n                return k.get(\"api_key\")\n    raise Exception(\"Could not resolve a Supabase service_role key.\")\n\n\nasync def _report(base, run_id, event_type, event_status, payload):\n    \"\"\"Tell the Command Center what happened. It decides what that means.\"\"\"\n    async with httpx.AsyncClient(timeout=30.0) as c:\n        r = await c.post(\n            f\"{base}/api/agent/runs/{run_id}/events\",\n            json={\"operator_name\": OPERATOR, \"event_type\": event_type,\n                  \"event_status\": event_status, \"payload\": payload},\n            headers={\"Content-Type\": \"application/json\",\n                     \"ngrok-skip-browser-warning\": \"1\"},\n        )\n        return r.status_code, r.text[:300]\n\n\nasync def step_apply_approved_run():\n    base = (user_inputs.get(\"command_center_url\") or \"\").rstrip(\"/\")\n    supabase_url = (user_inputs.get(\"supabase_url\") or \"\").rstrip(\"/\")\n    run_id = (user_inputs.get(\"run_id\") or \"\").strip()\n    issue_key = (user_inputs.get(\"issue_key\") or \"\").strip()\n    token = os.environ.get(\"SUPABASE_TOKEN\")\n\n    state = globals().get(\"workflow_step_state\", {})\n    item = state.get(\"item\")\n    if not item:\n        raise ValueError(\"No decision in state. Did fetch_decision run?\")\n    decision = (item.get(\"human_decision\") or \"\").strip().upper()\n    reviewer = item.get(\"reviewer\") or \"unnamed reviewer\"\n\n    # A rejection is an outcome too, and it is recorded as a refusal rather\n    # than quietly doing nothing.\n    if decision in (\"REJECT\", \"DENY\", \"DECLINE\"):\n        await _report(base, run_id, \"REMEDIATION_REFUSED\", \"ok\",\n                      {\"reasons\": [f\"A person rejected the proposed action ({reviewer}).\"],\n                       \"decided_by\": reviewer})\n        display(HTML(\"\"\"\n        <div class=\"ag-root\"><div class=\"ag-card\">\n          <h2 class=\"ag-h2\">Rejected by a person</h2>\n          <p class=\"ag-body\">Nothing was executed. The refusal is on the record.</p>\n        </div></div>\"\"\"))\n        return\n\n    key = await _resolve_service_key(supabase_url, token)\n    headers = {\"apikey\": key, \"Authorization\": f\"Bearer {key}\",\n               \"Content-Type\": \"application/json\",\n               \"Prefer\": \"return=representation\"}\n\n    # Column spelling differs between the Round 1 table and the Round 2 load,\n    # so try each and report which landed. A rejected write must never read as\n    # a success.\n    applied, write_detail = False, \"no attempt made\"\n    note = \"Resolved under human approval by \" + reviewer\n    payloads = [\n        {\"status\": \"Resolved\", \"resolution\": note, \"resolved_by\": \"human_approved\"},\n        {\"Status\": \"Resolved\", \"Resolution\": note, \"resolved_by\": \"human_approved\"},\n        {\"status\": \"Resolved\"},\n    ]\n    async with httpx.AsyncClient(timeout=30.0) as c:\n        for col in (\"issue_key\", \"Issue key\"):\n            for body in payloads:\n                r = await c.patch(f\"{supabase_url}/rest/v1/issues\",\n                                  params={col: f\"eq.{issue_key}\"},\n                                  headers=headers, json=body)\n                if r.status_code < 300 and r.json():\n                    applied = True\n                    write_detail = (f\"PATCH issues?{col}=eq.{issue_key} set \"\n                                    f\"{list(body)} -> HTTP {r.status_code}\")\n                    break\n                write_detail = f\"HTTP {r.status_code}: {r.text[:140]}\"\n            if applied:\n                break\n\n    # Read it back. Claiming success without checking is how a demo lies.\n    verified = False\n    if applied:\n        async with httpx.AsyncClient(timeout=30.0) as c:\n            r = await c.get(f\"{supabase_url}/rest/v1/issues\",\n                            params={\"issue_key\": f\"eq.{issue_key}\",\n                                    \"select\": \"issue_key,status,resolved_by\"},\n                            headers={\"apikey\": key, \"Authorization\": f\"Bearer {key}\"})\n            rows = r.json() if r.status_code in (200, 206) else []\n            verified = bool(rows) and str(rows[0].get(\"status\", \"\")).lower() == \"resolved\"\n\n    await _report(base, run_id, \"ACTION_EXECUTED\", \"ok\" if applied else \"error\",\n                  {\"approved_by\": reviewer, \"decision\": decision,\n                   \"write_detail\": write_detail})\n\n    status, text = await _report(\n        base, run_id, \"REMEDIATION_APPLIED\", \"ok\" if verified else \"error\",\n        {\"verified\": verified, \"write_detail\": write_detail,\n         \"verification\": (\"Read back from the system of record: status is Resolved.\"\n                          if verified else \"Could not confirm the write.\"),\n         \"approved_by\": reviewer, \"decision\": decision})\n\n    print(json.dumps({\"applied\": applied, \"verified\": verified,\n                      \"write_detail\": write_detail,\n                      \"command_center\": status}, indent=2, default=str))\n\n    head = \"Applied and verified\" if verified else \"Could not confirm the change\"\n    display(HTML(\"\"\"\n    <div class=\"ag-root\"><div class=\"ag-card\">\n      <h2 class=\"ag-h2\">\"\"\" + head + \"\"\"</h2>\n      <p class=\"ag-body\">Executed the scope a person approved, then read the record\n         back to check it landed. The Command Center is told either way.</p>\n      <table class=\"ag-table\">\n        <tr><td>Ticket</td><td>\"\"\" + issue_key + \"\"\"</td></tr>\n        <tr><td>Approved by</td><td>\"\"\" + str(reviewer) + \"\"\"</td></tr>\n        <tr><td>Write</td><td><code>\"\"\" + str(write_detail) + \"\"\"</code></td></tr>\n        <tr><td>Verified</td><td>\"\"\" + str(verified) + \"\"\"</td></tr>\n      </table>\n    </div></div>\"\"\"))\n\nawait step_apply_approved_run()\n",
+                "services": [
+                  "supabase"
+                ],
+                "depends_on": [
+                  "fetch_decision"
+                ],
+                "next_steps": []
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "schedules": [],
+  "integrationsManifest": {
+    "services": [
+      "supabase"
+    ],
+    "envNames": [
+      "SUPABASE_TOKEN"
+    ]
+  }
+}

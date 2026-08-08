@@ -1,0 +1,161 @@
+{
+  "exportFormatVersion": 1,
+  "exportedAt": "2026-07-19T13:20:04.755Z",
+  "rootWorkflowId": "5337cdb5-30e9-49ef-a1fe-d1d7a620a844",
+  "versionExportMode": "all",
+  "workflows": [
+    {
+      "sourceWorkflowId": "5337cdb5-30e9-49ef-a1fe-d1d7a620a844",
+      "sourceDefaultVersionNumber": 1,
+      "versions": [
+        {
+          "sourceVersionId": "a87b353b-3745-405d-9b98-af8a93fdf1d1",
+          "versionNumber": 1,
+          "commitMessage": "Round 2 schema: lowercase columns, no config table, direct service_role key",
+          "definition": {
+            "name": "RF-01 SLA Rescue Coordinator",
+            "description": "Ranks every unresolved ticket by SLA state, priority, VIP reporter and age, and writes a prioritised CSV. Rebuilt for the Round 2 schema: lowercase column names, no configuration table, and the service_role JWT used directly instead of a Supabase Management API round trip.",
+            "business_functions": [
+              "Customer Support",
+              "IT Service Management"
+            ],
+            "envs": [
+              {
+                "name": "SUPABASE_URL",
+                "description": "Supabase project URL (optional; the supabase_url input wins)."
+              },
+              {
+                "name": "SUPABASE_TOKEN",
+                "description": "Supabase service_role JWT, or a personal access token."
+              }
+            ],
+            "inputs": [
+              {
+                "name": "output_filename",
+                "description": "CSV file to produce.",
+                "type": "text",
+                "label": "Output filename",
+                "required": true,
+                "default": "ranked_tickets.csv"
+              },
+              {
+                "name": "supabase_url",
+                "description": "Supabase project URL.",
+                "type": "url",
+                "label": "Supabase URL",
+                "required": true,
+                "default": "https://lobcaobmdeihbbgxnuel.supabase.co"
+              }
+            ],
+            "start_at": [
+              "fetch_issues",
+              "fetch_config",
+              "fetch_users"
+            ],
+            "steps": [
+              {
+                "id": "fetch_issues",
+                "name": "Fetch Issues",
+                "description": "Fetch every ticket from Supabase and keep the ones that are not resolved or closed.",
+                "agent_prompt": "",
+                "services": [
+                  "supabase"
+                ],
+                "depends_on": [],
+                "code_cell": "\nimport os, sys, json, httpx\nfrom IPython.display import HTML, display\n\nasync def _resolve_service_key(supabase_url, token):\n    \"\"\"SUPABASE_TOKEN may be a service_role JWT or a personal access token.\"\"\"\n    if token and token.startswith(\"eyJ\"):\n        return token\n    project_ref = supabase_url.split(\"//\")[1].split(\".\")[0]\n    async with httpx.AsyncClient(timeout=20.0) as client:\n        resp = await client.get(\n            f\"https://api.supabase.com/v1/projects/{project_ref}/api-keys\",\n            headers={\"Authorization\": f\"Bearer {token}\"},\n        )\n        resp.raise_for_status()\n        for k in resp.json():\n            if k.get(\"name\") == \"service_role\":\n                return k.get(\"api_key\")\n    raise Exception(\"Could not resolve a Supabase service_role key.\")\n\n\ndef _sb_context():\n    url = (user_inputs.get(\"supabase_url\") or os.environ.get(\"SUPABASE_URL\") or \"\").rstrip(\"/\")\n    token = os.environ.get(\"SUPABASE_TOKEN\") or os.environ.get(\"SUPABASE_SERVICE_ROLE_KEY\")\n    if not url:\n        raise ValueError(\"No Supabase URL: set the supabase_url input or SUPABASE_URL.\")\n    if not token:\n        raise ValueError(\"Environment variable SUPABASE_TOKEN is missing.\")\n    return url, token\n\n\nasync def _page_all(client, url, headers, table, select=\"*\", extra=\"\"):\n    \"\"\"PostgREST caps a page; fetch until short. 460 rows fit in one page,\n    but paging costs nothing and survives the table growing.\"\"\"\n    out, step, off = [], 1000, 0\n    while True:\n        r = await client.get(\n            f\"{url}/rest/v1/{table}\",\n            params={\"select\": select, \"limit\": str(step), \"offset\": str(off)},\n            headers=headers,\n        )\n        if r.status_code not in (200, 206):\n            raise Exception(f\"{table}: HTTP {r.status_code} {r.text[:200]}\")\n        page = r.json()\n        out += page\n        if len(page) < step:\n            return out\n        off += step\n\n\ndef _get(row, *names):\n    \"\"\"Round 2 column names are lowercase snake_case. Round 1 used title case.\n    Accept either so this Operator is not brittle about which load it meets.\"\"\"\n    for n in names:\n        for c in (n, n.lower(), n.replace(\" \", \"_\").lower()):\n            if c in row and row[c] not in (None, \"\"):\n                return row[c]\n    return None\n\n\nasync def step_fetch_issues_run():\n    url, token = _sb_context()\n    key = await _resolve_service_key(url, token)\n    headers = {\"apikey\": key, \"Authorization\": f\"Bearer {key}\",\n               \"Accept\": \"application/json\"}\n\n    # The Round 2 column is lowercase \"status\". The Round 1 build asked for\n    # \"Status\" and PostgREST is case sensitive, which is why every fetch died.\n    async with httpx.AsyncClient(timeout=60.0) as client:\n        rows = await _page_all(client, url, headers, \"issues\")\n\n    issues = [r for r in rows\n              if str(_get(r, \"status\") or \"\").strip().lower()\n              not in (\"resolved\", \"closed\", \"done\")]\n\n    state = globals().setdefault(\"workflow_step_state\", {})\n    state[\"fetch_issues\"] = issues\n    print(json.dumps({\"fetched\": len(rows), \"unresolved\": len(issues)}, indent=2))\n\n    counts = {}\n    for i in issues:\n        p = str(_get(i, \"priority\") or \"Unknown\")\n        counts[p] = counts.get(p, 0) + 1\n    badges = \"\"\n    for p, n in sorted(counts.items()):\n        badges += f'<span class=\"ag-badge ag-badge-neutral\" style=\"margin-right:4px\">{p}: {n}</span>'\n    display(HTML(f\"\"\"\n    <div class=\"ag-root\"><div class=\"ag-card\">\n      <h2 class=\"ag-h2\">Unresolved tickets loaded</h2>\n      <p class=\"ag-body\">Read {len(rows)} tickets from the system of record;\n         {len(issues)} are still open and eligible for SLA ranking.</p>\n      <div style=\"margin-top:12px\"><span class=\"ag-muted\">By priority</span><br/>\n      <div style=\"margin-top:8px\">{badges}</div></div>\n    </div></div>\"\"\"))\n\nawait step_fetch_issues_run()\n",
+                "next_steps": [
+                  {
+                    "step_id": "rank_tickets"
+                  }
+                ]
+              },
+              {
+                "id": "fetch_config",
+                "name": "Fetch Configuration",
+                "description": "States the ranking weights in use. Round 2 has no configuration table, so built-in defaults are shown.",
+                "agent_prompt": "",
+                "services": [
+                  "supabase"
+                ],
+                "depends_on": [],
+                "code_cell": "\nimport os, sys, json, httpx\nfrom IPython.display import HTML, display\n\nasync def _resolve_service_key(supabase_url, token):\n    \"\"\"SUPABASE_TOKEN may be a service_role JWT or a personal access token.\"\"\"\n    if token and token.startswith(\"eyJ\"):\n        return token\n    project_ref = supabase_url.split(\"//\")[1].split(\".\")[0]\n    async with httpx.AsyncClient(timeout=20.0) as client:\n        resp = await client.get(\n            f\"https://api.supabase.com/v1/projects/{project_ref}/api-keys\",\n            headers={\"Authorization\": f\"Bearer {token}\"},\n        )\n        resp.raise_for_status()\n        for k in resp.json():\n            if k.get(\"name\") == \"service_role\":\n                return k.get(\"api_key\")\n    raise Exception(\"Could not resolve a Supabase service_role key.\")\n\n\ndef _sb_context():\n    url = (user_inputs.get(\"supabase_url\") or os.environ.get(\"SUPABASE_URL\") or \"\").rstrip(\"/\")\n    token = os.environ.get(\"SUPABASE_TOKEN\") or os.environ.get(\"SUPABASE_SERVICE_ROLE_KEY\")\n    if not url:\n        raise ValueError(\"No Supabase URL: set the supabase_url input or SUPABASE_URL.\")\n    if not token:\n        raise ValueError(\"Environment variable SUPABASE_TOKEN is missing.\")\n    return url, token\n\n\nasync def _page_all(client, url, headers, table, select=\"*\", extra=\"\"):\n    \"\"\"PostgREST caps a page; fetch until short. 460 rows fit in one page,\n    but paging costs nothing and survives the table growing.\"\"\"\n    out, step, off = [], 1000, 0\n    while True:\n        r = await client.get(\n            f\"{url}/rest/v1/{table}\",\n            params={\"select\": select, \"limit\": str(step), \"offset\": str(off)},\n            headers=headers,\n        )\n        if r.status_code not in (200, 206):\n            raise Exception(f\"{table}: HTTP {r.status_code} {r.text[:200]}\")\n        page = r.json()\n        out += page\n        if len(page) < step:\n            return out\n        off += step\n\n\ndef _get(row, *names):\n    \"\"\"Round 2 column names are lowercase snake_case. Round 1 used title case.\n    Accept either so this Operator is not brittle about which load it meets.\"\"\"\n    for n in names:\n        for c in (n, n.lower(), n.replace(\" \", \"_\").lower()):\n            if c in row and row[c] not in (None, \"\"):\n                return row[c]\n    return None\n\n\nasync def step_fetch_config_run():\n    \"\"\"\n    Round 2 has no config table. Round 1 did, and the old build halted the whole\n    ranking when it could not find one. Stating the defaults out loud is more\n    honest than pretending a table was read, and it keeps the step in the graph\n    so the shape of the Operator is unchanged.\n    \"\"\"\n    defaults = {\"vip_boost\": 250.0, \"sla_breach_weight\": 3000.0,\n                \"sla_at_risk_weight\": 2000.0, \"sla_within_weight\": 1000.0}\n    state = globals().setdefault(\"workflow_step_state\", {})\n    state[\"fetch_config\"] = {\"items\": [], \"lookup\": defaults, \"source\": \"built-in defaults\"}\n    print(json.dumps(state[\"fetch_config\"], indent=2))\n\n    rows = \"\"\n    for k, v in sorted(defaults.items()):\n        rows += f'<tr><td>{k}</td><td><span class=\"ag-badge\">{v}</span></td></tr>'\n    display(HTML(f\"\"\"\n    <div class=\"ag-root\"><div class=\"ag-card\">\n      <h2 class=\"ag-h2\">Ranking weights</h2>\n      <p class=\"ag-body\">The Round 2 dataset carries no configuration table, so\n         these built-in weights are used. They are shown here rather than hidden\n         in code, because a weight nobody can see is a weight nobody can check.</p>\n      <table class=\"ag-table\"><thead><tr><th>Setting</th><th>Value</th></tr></thead>\n      <tbody>{rows}</tbody></table>\n    </div></div>\"\"\"))\n\nawait step_fetch_config_run()\n",
+                "next_steps": [
+                  {
+                    "step_id": "rank_tickets"
+                  }
+                ]
+              },
+              {
+                "id": "fetch_users",
+                "name": "Fetch Users",
+                "description": "Fetch user details from the Supabase users_directory table to identify VIPs.",
+                "agent_prompt": "",
+                "services": [
+                  "supabase"
+                ],
+                "depends_on": [],
+                "code_cell": "\nimport os, sys, json, httpx\nfrom IPython.display import HTML, display\n\nasync def _resolve_service_key(supabase_url, token):\n    \"\"\"SUPABASE_TOKEN may be a service_role JWT or a personal access token.\"\"\"\n    if token and token.startswith(\"eyJ\"):\n        return token\n    project_ref = supabase_url.split(\"//\")[1].split(\".\")[0]\n    async with httpx.AsyncClient(timeout=20.0) as client:\n        resp = await client.get(\n            f\"https://api.supabase.com/v1/projects/{project_ref}/api-keys\",\n            headers={\"Authorization\": f\"Bearer {token}\"},\n        )\n        resp.raise_for_status()\n        for k in resp.json():\n            if k.get(\"name\") == \"service_role\":\n                return k.get(\"api_key\")\n    raise Exception(\"Could not resolve a Supabase service_role key.\")\n\n\ndef _sb_context():\n    url = (user_inputs.get(\"supabase_url\") or os.environ.get(\"SUPABASE_URL\") or \"\").rstrip(\"/\")\n    token = os.environ.get(\"SUPABASE_TOKEN\") or os.environ.get(\"SUPABASE_SERVICE_ROLE_KEY\")\n    if not url:\n        raise ValueError(\"No Supabase URL: set the supabase_url input or SUPABASE_URL.\")\n    if not token:\n        raise ValueError(\"Environment variable SUPABASE_TOKEN is missing.\")\n    return url, token\n\n\nasync def _page_all(client, url, headers, table, select=\"*\", extra=\"\"):\n    \"\"\"PostgREST caps a page; fetch until short. 460 rows fit in one page,\n    but paging costs nothing and survives the table growing.\"\"\"\n    out, step, off = [], 1000, 0\n    while True:\n        r = await client.get(\n            f\"{url}/rest/v1/{table}\",\n            params={\"select\": select, \"limit\": str(step), \"offset\": str(off)},\n            headers=headers,\n        )\n        if r.status_code not in (200, 206):\n            raise Exception(f\"{table}: HTTP {r.status_code} {r.text[:200]}\")\n        page = r.json()\n        out += page\n        if len(page) < step:\n            return out\n        off += step\n\n\ndef _get(row, *names):\n    \"\"\"Round 2 column names are lowercase snake_case. Round 1 used title case.\n    Accept either so this Operator is not brittle about which load it meets.\"\"\"\n    for n in names:\n        for c in (n, n.lower(), n.replace(\" \", \"_\").lower()):\n            if c in row and row[c] not in (None, \"\"):\n                return row[c]\n    return None\n\n\nasync def step_fetch_users_run():\n    url, token = _sb_context()\n    key = await _resolve_service_key(url, token)\n    headers = {\"apikey\": key, \"Authorization\": f\"Bearer {key}\",\n               \"Accept\": \"application/json\"}\n    async with httpx.AsyncClient(timeout=60.0) as client:\n        users = await _page_all(client, url, headers, \"users_directory\")\n\n    state = globals().setdefault(\"workflow_step_state\", {})\n    state[\"fetch_users\"] = users\n    vips = sum(1 for u in users\n               if str(_get(u, \"x_vip\") or \"\").strip().lower() in (\"true\", \"1\", \"t\", \"yes\"))\n    print(json.dumps({\"users\": len(users), \"vip\": vips}, indent=2))\n    display(HTML(f\"\"\"\n    <div class=\"ag-root\"><div class=\"ag-card\">\n      <h2 class=\"ag-h2\">User directory loaded</h2>\n      <div style=\"display:flex;gap:24px;margin-top:12px\">\n        <div><span class=\"ag-muted\">Users</span><br/><span class=\"ag-metric\">{len(users)}</span></div>\n        <div><span class=\"ag-muted\">VIP</span><br/><span class=\"ag-metric\">{vips}</span></div>\n      </div>\n    </div></div>\"\"\"))\n\nawait step_fetch_users_run()\n",
+                "next_steps": [
+                  {
+                    "step_id": "rank_tickets"
+                  }
+                ]
+              },
+              {
+                "id": "rank_tickets",
+                "name": "Rank Tickets",
+                "description": "Process the tickets, apply ranking logic based on SLA, Priority, VIP status, and Age, and generate a sorted list. Save the list to a CSV file.",
+                "agent_prompt": "",
+                "services": [
+                  "pandas"
+                ],
+                "depends_on": [
+                  "fetch_issues",
+                  "fetch_config",
+                  "fetch_users"
+                ],
+                "code_cell": "\nimport json, sys\nimport pandas as pd\nfrom datetime import datetime\nfrom IPython.display import HTML, display\n\n\ndef _get(row, *names):\n    for n in names:\n        for c in (n, n.lower(), n.replace(\" \", \"_\").lower()):\n            if c in row and row[c] not in (None, \"\"):\n                return row[c]\n    return None\n\n\ndef _age_days(value):\n    \"\"\"\n    Two date shapes live in this export: \"Jul 14 2026\" and\n    \"2026-07-07 00:00:00\". Only 16% of rows record a real time of day, so age\n    is measured in whole days and no detection window is inferred from a\n    midnight that was never observed.\n    \"\"\"\n    text = str(value or \"\").strip()\n    for fmt in (\"%b %d %Y\", \"%Y-%m-%d %H:%M:%S\", \"%Y-%m-%d\", \"%d/%m/%Y\"):\n        try:\n            return (datetime(2030, 1, 1) - datetime.strptime(text, fmt)).days\n        except ValueError:\n            continue\n    return None\n\n\nasync def step_rank_tickets_run():\n    state = globals().setdefault(\"workflow_step_state\", {})\n    issues = state.get(\"fetch_issues\", [])\n    users = state.get(\"fetch_users\", [])\n    cfg = (state.get(\"fetch_config\") or {}).get(\"lookup\", {})\n    output_filename = user_inputs.get(\"output_filename\", \"ranked_tickets.csv\")\n\n    if not issues:\n        raise ValueError(\"No unresolved tickets in state. Did fetch_issues run?\")\n\n    vip = {str(_get(u, \"display_name\") or \"\").strip().lower():\n           str(_get(u, \"x_vip\") or \"\").strip().lower() in (\"true\", \"1\", \"t\", \"yes\")\n           for u in users}\n\n    w_breach = float(cfg.get(\"sla_breach_weight\", 3000))\n    w_risk = float(cfg.get(\"sla_at_risk_weight\", 2000))\n    w_within = float(cfg.get(\"sla_within_weight\", 1000))\n    w_vip = float(cfg.get(\"vip_boost\", 250))\n\n    ranked, incomplete = [], 0\n    for i in issues:\n        key = _get(i, \"issue_key\", \"Issue key\") or _get(i, \"issue_id\") or \"UNKNOWN\"\n        sla = str(_get(i, \"customfield_10030_time_to_resolution\",\n                       \"customfield_10030 (Time to resolution)\") or \"\").strip()\n        priority = str(_get(i, \"priority\") or \"\").strip()\n        created = _get(i, \"created\")\n        reporter = str(_get(i, \"reporter\") or \"\").strip().lower()\n\n        # A missing field is reported, never guessed. An invented urgency is\n        # worse than an admitted gap.\n        missing = [n for n, v in ((\"time to resolution\", sla),\n                                  (\"priority\", priority),\n                                  (\"created\", created)) if not v]\n        if missing:\n            incomplete += 1\n            ranked.append({\"ticket_id\": key, \"rescue_priority\": \"Needs review\",\n                           \"sla_status\": sla or \"not recorded\",\n                           \"reason\": \"missing: \" + \", \".join(missing),\n                           \"recommended_next_action\": \"Send to human review\",\n                           \"data_quality_issue\": True, \"_score\": -1})\n            continue\n\n        score = (w_breach if \"breach\" in sla.lower() else\n                 w_risk if \"risk\" in sla.lower() else\n                 w_within if \"within\" in sla.lower() else 0.0)\n        score += {\"Highest\": 400, \"High\": 300, \"Medium\": 200, \"Low\": 100}.get(priority, 0)\n        if vip.get(reporter):\n            score += w_vip\n        age = _age_days(created)\n        if age is not None:\n            score += min(age / 100.0, 50.0)\n\n        band = (\"Critical\" if score >= w_breach else\n                \"High\" if score >= w_risk else \"Normal\")\n        ranked.append({\"ticket_id\": key, \"rescue_priority\": band,\n                       \"sla_status\": sla,\n                       \"reason\": f\"SLA {sla} | priority {priority}\"\n                                 + (\" | VIP reporter\" if vip.get(reporter) else \"\"),\n                       \"recommended_next_action\":\n                           \"Expedite\" if band == \"Critical\" else \"Monitor\",\n                       \"data_quality_issue\": False, \"_score\": score})\n\n    ranked.sort(key=lambda r: r[\"_score\"], reverse=True)\n    for r in ranked:\n        r.pop(\"_score\", None)\n    pd.DataFrame(ranked).to_csv(output_filename, index=False)\n    state[\"rank_tickets\"] = ranked\n\n    bands = {}\n    for r in ranked:\n        bands[r[\"rescue_priority\"]] = bands.get(r[\"rescue_priority\"], 0) + 1\n    print(json.dumps({\"ranked\": len(ranked), \"bands\": bands,\n                      \"incomplete\": incomplete}, indent=2))\n\n    rows = \"\"\n    for r in ranked[:8]:\n        tid = r[\"ticket_id\"]; band = r[\"rescue_priority\"]\n        sla_txt = r[\"sla_status\"]; act = r[\"recommended_next_action\"]\n        rows += f\"<tr><td>{tid}</td><td>{band}</td><td>{sla_txt}</td><td>{act}</td></tr>\"\n    display(HTML(f\"\"\"\n    <div class=\"ag-root\"><div class=\"ag-card\">\n      <h2 class=\"ag-h2\">SLA rescue ranking complete</h2>\n      <p class=\"ag-body\">{len(ranked)} unresolved tickets ranked. {incomplete} could\n         not be scored because a required field was not recorded; those are listed\n         for human review rather than given an invented urgency.</p>\n      <table class=\"ag-table\"><thead><tr><th>Ticket</th><th>Band</th>\n        <th>SLA</th><th>Action</th></tr></thead><tbody>{rows}</tbody></table>\n      <p class=\"ag-muted\" style=\"margin-top:12px\">Saved to {output_filename}</p>\n    </div></div>\"\"\"))\n\nawait step_rank_tickets_run()\n",
+                "next_steps": [
+                  {
+                    "step_id": "upload_results"
+                  }
+                ]
+              },
+              {
+                "id": "upload_results",
+                "name": "Upload Results",
+                "description": "Upload the generated ranked tickets CSV file for download.",
+                "agent_prompt": "Use the 'upload_output_file' predefined function to upload the CSV file generated in the previous step (filename is in user_inputs['output_filename']). Output the URL of the uploaded file so it can be downloaded.",
+                "services": [
+                  "output_artifacts"
+                ],
+                "depends_on": [
+                  "rank_tickets"
+                ],
+                "code_cell": "import os\nimport sys\nimport json\nfrom IPython.display import HTML, display\n\nasync def step_upload_results_execute():\n    \"\"\"\n    Implements the 'upload_results' step.\n    Uploads the CSV generated by the ranking step to storage and provides a download link.\n    \"\"\"\n    # 1. Configuration & Namespacing\n    # Using specific namespaced variable names for safety and clarity\n    step_id = \"upload_results\"\n    workflow_step_state = globals().setdefault(\"workflow_step_state\", {})\n    \n    # Retrieve filename from user inputs (configured at start of workflow)\n    # Defaulting to ranked_tickets.csv if somehow missing\n    step_upload_results_filename = user_inputs.get('output_filename', 'ranked_tickets.csv')\n    \n    # 2. Artifact Verification\n    # Ensure the file exists before calling the upload service\n    if not os.path.exists(step_upload_results_filename):\n        error_msg = f\"Missing artifact: The file '{step_upload_results_filename}' was not found. Ensure preceding steps completed successfully.\"\n        print(error_msg, file=sys.stderr)\n        raise FileNotFoundError(error_msg)\n    \n    # 3. Action: Upload File to Storage\n    # The platform's helper function 'upload_output_file' handles the cloud storage integration\n    try:\n        step_upload_results_url = await upload_output_file(step_upload_results_filename)\n    except Exception as e:\n        error_trace = f\"Failed to upload {step_upload_results_filename}: {str(e)}\"\n        print(error_trace, file=sys.stderr)\n        raise RuntimeError(error_trace) from e\n    \n    # 4. State Persistence\n    # Store results in the workflow state and global namespace for potential later access\n    step_output_payload = {\n        \"file_url\": step_upload_results_url,\n        \"filename\": step_upload_results_filename,\n        \"status\": \"success\",\n        \"timestamp\": str(os.path.getmtime(step_upload_results_filename))\n    }\n    globals()[f\"step_{step_id}_output\"] = step_output_payload\n    workflow_step_state[step_id] = step_output_payload\n    \n    # 5. Standard Output\n    # Print the payload as valid JSON for logging and downstream processing\n    print(json.dumps(step_output_payload, indent=2))\n    \n    # 6. User Interface (Atmospheric Glass)\n    # Render the download link and status badge to the UI\n    display(HTML(f\"\"\"\n    <div class=\"ag-root\">\n        <div class=\"ag-card\">\n            <h2 class=\"ag-h2\">SLA Rescue Report Ready</h2>\n            <p class=\"ag-body\">The ranking engine has finalized the prioritization list. You can now download the CSV report for distribution.</p>\n            \n            <div style=\"margin: 24px 0;\">\n                <div style=\"margin-bottom: 16px;\">\n                    <span class=\"ag-muted\">Output Artifact</span><br/>\n                    <span class=\"ag-body\"><code>{step_upload_results_filename}</code></span>\n                </div>\n                \n                <div style=\"display: flex; align-items: center; gap: 12px;\">\n                    <a href=\"{step_upload_results_url}\" class=\"ag-link\" target=\"_blank\" download=\"{step_upload_results_filename}\">\n                        <button class=\"ag-btn ag-btn-primary\">Download CSV Results</button>\n                    </a>\n                    <span class=\"ag-badge ag-badge-success\">Uploaded to Storage</span>\n                </div>\n            </div>\n            \n            <p class=\"ag-muted\">This file contains the rescue priority, SLA status, and recommended actions for all unresolved tickets.</p>\n        </div>\n    </div>\n    \"\"\"))\n\n# Execute the step logic\nawait step_upload_results_execute()\n",
+                "next_steps": []
+              }
+            ],
+            "pip_packages": [
+              "httpx",
+              "pandas"
+            ],
+            "integration_overrides": {}
+          }
+        }
+      ]
+    }
+  ],
+  "schedules": [],
+  "integrationsManifest": {
+    "services": [
+      "supabase",
+      "output_artifacts",
+      "pandas"
+    ],
+    "envNames": [
+      "SUPABASE_TOKEN",
+      "SUPABASE_URL"
+    ]
+  }
+}

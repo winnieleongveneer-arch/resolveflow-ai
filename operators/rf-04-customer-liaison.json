@@ -1,0 +1,155 @@
+{
+  "exportFormatVersion": 1,
+  "exportedAt": "2026-07-19T13:19:28.507Z",
+  "rootWorkflowId": "d358f3f0-6814-40bf-bfe6-7f8d22ef0de6",
+  "versionExportMode": "all",
+  "workflows": [
+    {
+      "sourceWorkflowId": "d358f3f0-6814-40bf-bfe6-7f8d22ef0de6",
+      "sourceDefaultVersionNumber": 1,
+      "versions": [
+        {
+          "sourceVersionId": "019f7a47-9f00-7000-9a86-2e852cab6422",
+          "versionNumber": 1,
+          "commitMessage": "Round 2 schema; sending opt-in and capped",
+          "definition": {
+            "name": "RF-04 Customer Liaison",
+            "description": "Tells the people who raised tickets that the agent resolved them. Rebuilt for Round 2: selects on what RF-03 actually writes, uses a visible built-in message template, and sending is opt-in and capped.",
+            "business_functions": [
+              "Customer Service",
+              "IT Service Management"
+            ],
+            "envs": [
+              {
+                "name": "SUPABASE_URL",
+                "description": "Supabase project URL (the input wins)."
+              },
+              {
+                "name": "SUPABASE_TOKEN",
+                "description": "Supabase service_role JWT."
+              },
+              {
+                "name": "MICROSOFT_OUTLOOK_TOKEN",
+                "description": "Injected by the Outlook connector."
+              }
+            ],
+            "inputs": [
+              {
+                "name": "test_recipient_email",
+                "description": "Every message goes here, never to the real reporter.",
+                "type": "email",
+                "label": "Test recipient email",
+                "required": true,
+                "default": "you@example.com"
+              },
+              {
+                "name": "send",
+                "description": "yes actually sends mail. no performs a dry run.",
+                "type": "text",
+                "label": "Send email (yes/no)",
+                "required": true,
+                "default": "no"
+              },
+              {
+                "name": "max_emails",
+                "description": "Never send more than this many in one run.",
+                "type": "text",
+                "label": "Maximum emails",
+                "required": true,
+                "default": "3"
+              },
+              {
+                "name": "supabase_url",
+                "description": "Supabase project URL.",
+                "type": "url",
+                "label": "Supabase URL",
+                "required": false,
+                "default": "https://lobcaobmdeihbbgxnuel.supabase.co"
+              }
+            ],
+            "start_at": [
+              "fetch_issues",
+              "fetch_users",
+              "fetch_config"
+            ],
+            "steps": [
+              {
+                "id": "fetch_issues",
+                "name": "Fetch Resolved Issues",
+                "description": "Fetch auto-resolved tickets from Supabase that haven't been notified yet.",
+                "agent_prompt": "",
+                "services": [
+                  "supabase"
+                ],
+                "is_human_input_step": false,
+                "depends_on": [],
+                "code_cell": "\nimport os, sys, json, httpx\nfrom IPython.display import HTML, display\n\nasync def _key(url, token):\n    \"\"\"A service_role JWT is already the key. The Round 1 build always went to\n    the Management API first, which is what broke every fetch step.\"\"\"\n    if token and token.startswith(\"eyJ\"):\n        return token\n    ref = url.split(\"//\")[1].split(\".\")[0]\n    async with httpx.AsyncClient(timeout=20.0) as c:\n        r = await c.get(f\"https://api.supabase.com/v1/projects/{ref}/api-keys\",\n                        headers={\"Authorization\": f\"Bearer {token}\"})\n        r.raise_for_status()\n        for k in r.json():\n            if k.get(\"name\") == \"service_role\":\n                return k.get(\"api_key\")\n    raise Exception(\"Could not resolve a Supabase service_role key.\")\n\n\ndef _ctx():\n    url = (user_inputs.get(\"supabase_url\") or os.environ.get(\"SUPABASE_URL\") or \"\").rstrip(\"/\")\n    token = os.environ.get(\"SUPABASE_TOKEN\") or os.environ.get(\"SUPABASE_SERVICE_ROLE_KEY\")\n    if not url or not token:\n        raise ValueError(\"Supabase URL or SUPABASE_TOKEN missing.\")\n    return url, token\n\n\ndef _get(row, *names):\n    for n in names:\n        for c in (n, n.lower(), n.replace(\" \", \"_\").lower()):\n            if c in row and row[c] not in (None, \"\"):\n                return row[c]\n    return None\n\n\nasync def run():\n    url, token = _ctx()\n    key = await _key(url, token)\n    headers = {\"apikey\": key, \"Authorization\": f\"Bearer {key}\"}\n\n    # Round 1 filtered on \"Status\" and on a customer_notified column. Neither\n    # exists here: the column is lowercase \"status\", and customer_notified was\n    # never part of the Round 2 schema. Selecting on what RF-03 actually writes\n    # is both correct and honest - these are tickets this agent resolved.\n    async with httpx.AsyncClient(timeout=60.0) as c:\n        r = await c.get(f\"{url}/rest/v1/issues\",\n                        params={\"select\": \"*\", \"status\": \"eq.Resolved\",\n                                \"resolved_by\": \"eq.auto\", \"limit\": \"200\"},\n                        headers=headers)\n        if r.status_code not in (200, 206):\n            raise Exception(f\"issues: HTTP {r.status_code} {r.text[:200]}\")\n        rows = r.json()\n\n    state = globals().setdefault(\"workflow_step_state\", {})\n    state[\"fetch_issues\"] = rows\n    print(json.dumps({\"auto_resolved_awaiting_notice\": len(rows),\n                      \"tickets\": [_get(x, \"issue_key\") for x in rows]}, indent=2))\n\n    body = \"\"\n    for x in rows[:12]:\n        body += (\"<tr><td>\" + str(_get(x, \"issue_key\")) + \"</td><td>\"\n                 + str(_get(x, \"summary\"))[:60] + \"</td><td>\"\n                 + str(_get(x, \"reporter\")) + \"</td></tr>\")\n    display(HTML(\"\"\"\n    <div class=\"ag-root\"><div class=\"ag-card\">\n      <h2 class=\"ag-h2\">Tickets the agent resolved</h2>\n      <p class=\"ag-body\">\"\"\" + str(len(rows)) + \"\"\" ticket(s) carry status Resolved\n         and resolved_by=auto - written by RF-03 after the policy gate allowed it.\n         These are the people who should be told.</p>\n      <table class=\"ag-table\"><thead><tr><th>Ticket</th><th>Summary</th>\n        <th>Reporter</th></tr></thead><tbody>\"\"\" + body + \"\"\"</tbody></table>\n    </div></div>\"\"\"))\n\nawait run()\n",
+                "next_steps": []
+              },
+              {
+                "id": "fetch_users",
+                "name": "Fetch Users Directory",
+                "description": "Fetch the user directory to map reporter names to email addresses.",
+                "agent_prompt": "",
+                "services": [
+                  "supabase"
+                ],
+                "is_human_input_step": false,
+                "depends_on": [],
+                "code_cell": "\nimport os, sys, json, httpx\nfrom IPython.display import HTML, display\n\nasync def _key(url, token):\n    \"\"\"A service_role JWT is already the key. The Round 1 build always went to\n    the Management API first, which is what broke every fetch step.\"\"\"\n    if token and token.startswith(\"eyJ\"):\n        return token\n    ref = url.split(\"//\")[1].split(\".\")[0]\n    async with httpx.AsyncClient(timeout=20.0) as c:\n        r = await c.get(f\"https://api.supabase.com/v1/projects/{ref}/api-keys\",\n                        headers={\"Authorization\": f\"Bearer {token}\"})\n        r.raise_for_status()\n        for k in r.json():\n            if k.get(\"name\") == \"service_role\":\n                return k.get(\"api_key\")\n    raise Exception(\"Could not resolve a Supabase service_role key.\")\n\n\ndef _ctx():\n    url = (user_inputs.get(\"supabase_url\") or os.environ.get(\"SUPABASE_URL\") or \"\").rstrip(\"/\")\n    token = os.environ.get(\"SUPABASE_TOKEN\") or os.environ.get(\"SUPABASE_SERVICE_ROLE_KEY\")\n    if not url or not token:\n        raise ValueError(\"Supabase URL or SUPABASE_TOKEN missing.\")\n    return url, token\n\n\ndef _get(row, *names):\n    for n in names:\n        for c in (n, n.lower(), n.replace(\" \", \"_\").lower()):\n            if c in row and row[c] not in (None, \"\"):\n                return row[c]\n    return None\n\n\nasync def run():\n    url, token = _ctx()\n    key = await _key(url, token)\n    async with httpx.AsyncClient(timeout=60.0) as c:\n        r = await c.get(f\"{url}/rest/v1/users_directory\",\n                        params={\"select\": \"*\", \"limit\": \"1000\"},\n                        headers={\"apikey\": key, \"Authorization\": f\"Bearer {key}\"})\n        if r.status_code not in (200, 206):\n            raise Exception(f\"users_directory: HTTP {r.status_code} {r.text[:200]}\")\n        users = r.json()\n    state = globals().setdefault(\"workflow_step_state\", {})\n    state[\"fetch_users\"] = users\n    print(json.dumps({\"users\": len(users)}, indent=2))\n    display(HTML(\"\"\"\n    <div class=\"ag-root\"><div class=\"ag-card\">\n      <h2 class=\"ag-h2\">User directory loaded</h2>\n      <p class=\"ag-body\">\"\"\" + str(len(users)) + \"\"\" people, used to turn a ticket\n         reporter into an email address.</p>\n    </div></div>\"\"\"))\n\nawait run()\n",
+                "next_steps": []
+              },
+              {
+                "id": "fetch_config",
+                "name": "Fetch Configuration",
+                "description": "Fetch the email template from the configuration table.",
+                "agent_prompt": "",
+                "services": [
+                  "supabase"
+                ],
+                "is_human_input_step": false,
+                "depends_on": [],
+                "code_cell": "\nimport json\nfrom IPython.display import HTML, display\n\n# Round 1 read the message template from a config table. Round 2 has no such\n# table, so the template lives here where anyone can read it. A message sent to\n# a customer should never be assembled from something nobody can see.\nTEMPLATE = (\n    \"Hello {name},\\n\\n\"\n    \"Your ticket {issue_key} has been resolved.\\n\\n\"\n    \"What was done: {resolution}\\n\\n\"\n    \"This was carried out automatically after an automated policy check \"\n    \"confirmed the fix was reversible and cleared for automatic use. \"\n    \"If the problem is still happening, reply to this message and it will \"\n    \"be reopened for a person to look at.\\n\\n\"\n    \"Service Desk\"\n)\n\nstate = globals().setdefault(\"workflow_step_state\", {})\nstate[\"fetch_config\"] = {\"template\": TEMPLATE, \"source\": \"built-in\"}\nprint(json.dumps({\"template_source\": \"built-in\", \"length\": len(TEMPLATE)}, indent=2))\ndisplay(HTML(\"\"\"\n<div class=\"ag-root\"><div class=\"ag-card\">\n  <h2 class=\"ag-h2\">Message template</h2>\n  <p class=\"ag-body\">No configuration table exists in Round 2, so this built-in\n     template is used. It is shown in full rather than hidden in code.</p>\n  <pre class=\"ag-body\" style=\"white-space:pre-wrap\">\"\"\" + TEMPLATE + \"\"\"</pre>\n</div></div>\"\"\"))\n",
+                "next_steps": []
+              },
+              {
+                "id": "process_and_notify",
+                "name": "Process Tickets and Send Notifications",
+                "description": "Match reporters for personalization, compose the notification using the template, send it to the testing email address via Outlook, and update the ticket in Supabase.",
+                "agent_prompt": "",
+                "services": [
+                  "supabase",
+                  "microsoft_outlook"
+                ],
+                "is_human_input_step": false,
+                "depends_on": [
+                  "fetch_issues",
+                  "fetch_users",
+                  "fetch_config"
+                ],
+                "code_cell": "\nimport os, sys, json, httpx\nfrom IPython.display import HTML, display\n\nasync def _key(url, token):\n    \"\"\"A service_role JWT is already the key. The Round 1 build always went to\n    the Management API first, which is what broke every fetch step.\"\"\"\n    if token and token.startswith(\"eyJ\"):\n        return token\n    ref = url.split(\"//\")[1].split(\".\")[0]\n    async with httpx.AsyncClient(timeout=20.0) as c:\n        r = await c.get(f\"https://api.supabase.com/v1/projects/{ref}/api-keys\",\n                        headers={\"Authorization\": f\"Bearer {token}\"})\n        r.raise_for_status()\n        for k in r.json():\n            if k.get(\"name\") == \"service_role\":\n                return k.get(\"api_key\")\n    raise Exception(\"Could not resolve a Supabase service_role key.\")\n\n\ndef _ctx():\n    url = (user_inputs.get(\"supabase_url\") or os.environ.get(\"SUPABASE_URL\") or \"\").rstrip(\"/\")\n    token = os.environ.get(\"SUPABASE_TOKEN\") or os.environ.get(\"SUPABASE_SERVICE_ROLE_KEY\")\n    if not url or not token:\n        raise ValueError(\"Supabase URL or SUPABASE_TOKEN missing.\")\n    return url, token\n\n\ndef _get(row, *names):\n    for n in names:\n        for c in (n, n.lower(), n.replace(\" \", \"_\").lower()):\n            if c in row and row[c] not in (None, \"\"):\n                return row[c]\n    return None\n\n\nasync def _send(subject, body_text, to_addr):\n    token = os.environ.get(\"MICROSOFT_OUTLOOK_TOKEN\")\n    if not token or not to_addr:\n        return {\"sent\": False, \"detail\": \"Outlook connector or recipient missing.\"}\n    payload = {\"message\": {\n        \"subject\": subject,\n        \"body\": {\"contentType\": \"HTML\",\n                 \"content\": \"<div style='font-family:sans-serif'>\"\n                            + body_text.replace(chr(10), \"<br/>\") + \"</div>\"},\n        \"toRecipients\": [{\"emailAddress\": {\"address\": to_addr}}]},\n        \"saveToSentItems\": True}\n    try:\n        async with httpx.AsyncClient(timeout=30.0) as c:\n            r = await c.post(\"https://graph.microsoft.com/v1.0/me/sendMail\",\n                             headers={\"Authorization\": f\"Bearer {token}\",\n                                      \"Content-Type\": \"application/json\"},\n                             json=payload)\n            return {\"sent\": r.status_code in (200, 202),\n                    \"detail\": f\"Graph returned HTTP {r.status_code}\"}\n    except Exception as exc:\n        return {\"sent\": False, \"detail\": f\"{type(exc).__name__}: {exc}\"}\n\n\nasync def run():\n    state = globals().setdefault(\"workflow_step_state\", {})\n    issues = state.get(\"fetch_issues\", [])\n    users = state.get(\"fetch_users\", [])\n    template = (state.get(\"fetch_config\") or {}).get(\"template\", \"\")\n\n    to_addr = (user_inputs.get(\"test_recipient_email\") or \"\").strip()\n    # Sending is opt-in. A demo that mails real people every time it is\n    # rehearsed is a demo nobody rehearses.\n    send = str(user_inputs.get(\"send\", \"no\")).strip().lower() in (\"yes\", \"true\", \"1\")\n    try:\n        cap = int(str(user_inputs.get(\"max_emails\", \"3\")).strip())\n    except ValueError:\n        cap = 3\n\n    by_name = {str(_get(u, \"display_name\") or \"\").strip().lower(): u for u in users}\n\n    results = []\n    for issue in issues[:cap]:\n        key = _get(issue, \"issue_key\") or \"UNKNOWN\"\n        reporter = str(_get(issue, \"reporter\") or \"\").strip()\n        user = by_name.get(reporter.lower())\n        if not user:\n            results.append({\"issue_key\": key, \"status\": \"skipped\",\n                            \"reason\": \"reporter not in the user directory\"})\n            continue\n        message = template.format(\n            name=str(_get(user, \"display_name\") or reporter),\n            issue_key=key,\n            resolution=str(_get(issue, \"resolution\") or \"Resolved\"))\n        subject = f\"[{key}] Your ticket has been resolved\"\n        if not send:\n            results.append({\"issue_key\": key, \"status\": \"dry run\",\n                            \"would_email\": to_addr,\n                            \"real_reporter_address\": _get(user, \"email_address\"),\n                            \"subject\": subject})\n            continue\n        out = await _send(subject, message, to_addr)\n        results.append({\"issue_key\": key,\n                        \"status\": \"sent\" if out[\"sent\"] else \"failed\",\n                        \"detail\": out[\"detail\"], \"to\": to_addr})\n\n    state[\"process_and_notify\"] = results\n    print(json.dumps({\"mode\": \"send\" if send else \"dry run\", \"cap\": cap,\n                      \"results\": results}, indent=2, default=str))\n\n    rows = \"\"\n    for r in results:\n        rows += (\"<tr><td>\" + str(r.get(\"issue_key\")) + \"</td><td>\"\n                 + str(r.get(\"status\")) + \"</td><td>\"\n                 + str(r.get(\"detail\") or r.get(\"reason\")\n                       or r.get(\"real_reporter_address\") or \"\") + \"</td></tr>\")\n    heading = \"Notifications sent\" if send else \"Dry run - no mail was sent\"\n    display(HTML(\"\"\"\n    <div class=\"ag-root\"><div class=\"ag-card\">\n      <h2 class=\"ag-h2\">\"\"\" + heading + \"\"\"</h2>\n      <p class=\"ag-body\">Every message is redirected to the test address rather\n         than to the real reporter, so a rehearsal never reaches a customer.\n         The reporter's true address is shown for verification only.</p>\n      <table class=\"ag-table\"><thead><tr><th>Ticket</th><th>Status</th>\n        <th>Detail</th></tr></thead><tbody>\"\"\" + rows + \"\"\"</tbody></table>\n    </div></div>\"\"\"))\n\nawait run()\n",
+                "next_steps": []
+              }
+            ],
+            "pip_packages": [
+              "httpx"
+            ],
+            "integration_overrides": {}
+          }
+        }
+      ]
+    }
+  ],
+  "schedules": [],
+  "integrationsManifest": {
+    "services": [
+      "microsoft_outlook",
+      "supabase"
+    ],
+    "envNames": [
+      "MICROSOFT_OUTLOOK_TOKEN",
+      "SUPABASE_TOKEN",
+      "SUPABASE_URL"
+    ]
+  }
+}
