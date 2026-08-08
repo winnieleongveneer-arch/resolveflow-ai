@@ -108,8 +108,8 @@ export default function RootLayout({
   return (
     <html lang='en' className='light' suppressHydrationWarning>
       <head>
-        <title>AutoPilot Command Center</title>
-        <meta name='description' content='AI Command Center — Build, govern, and monitor your AI workforce' />
+        <title>ResolveFlow AI — Service Desk Command Center</title>
+        <meta name='description' content='ResolveFlow AI — governed autonomy for the IT service desk. Every action is policy-checked before it runs.' />
       </head>
       <body
         className={cn(

@@ -48,7 +48,7 @@ function SignInContent() {
             transition={{ delay: 0.3, duration: 0.4 }}
           >
             <CardTitle className='text-display-5 font-bold text-brand-navy'>
-              AutoPilot
+              ResolveFlow AI
             </CardTitle>
             <p className='mt-2 text-muted-foreground'>
               Signing you in...

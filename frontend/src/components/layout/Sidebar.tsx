@@ -265,7 +265,7 @@ export function Sidebar() {
             {!isCollapsed && (
               <div className='flex flex-col transition-transform duration-200 group-hover:translate-x-0.5'>
                 <span className='font-display text-lg font-bold tracking-tight text-brand-navy'>
-                  AutoPilot
+                  ResolveFlow AI
                 </span>
                 <span className='text-[10px] font-medium uppercase tracking-widest text-brand-muted'>
                   Command Center

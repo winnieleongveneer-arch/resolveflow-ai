@@ -78,7 +78,7 @@ function AnalyzingState({ currentStep }: { currentStep: number }) {
           <Icons.brain className="h-5 w-5 text-white animate-pulse" strokeWidth={1.5} />
         </div>
         <div>
-          <h3 className="text-lg font-semibold text-brand-navy">AutoPilot AI is analyzing...</h3>
+          <h3 className="text-lg font-semibold text-brand-navy">ResolveFlow AI is analyzing...</h3>
           <p className="text-sm text-muted-foreground">Please wait while we process your rule</p>
         </div>
       </div>
@@ -550,7 +550,7 @@ export function RuleBuilderModal({
           </DialogTitle>
           <DialogDescription>
             {step === 'input' && 'Describe your rule in plain English. The AI will refine it into executable logic.'}
-            {step === 'analyzing' && 'Please wait while AutoPilot AI processes your rule.'}
+            {step === 'analyzing' && 'Please wait while ResolveFlow AI processes your rule.'}
             {step === 'review' && 'Review the AI analysis and select your preferred instruction.'}
             {step === 'saving' && 'Saving your rule...'}
           </DialogDescription>

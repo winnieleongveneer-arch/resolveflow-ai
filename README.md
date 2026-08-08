@@ -1,12 +1,6 @@
-# 🚀 AutoPilot Template
+# ResolveFlow AI
 
-Your AI Command Center starter kit for the AutoPilot Hackathon.
-
-Build an intelligent, multi-agent command center that automates business processes with AI — while keeping humans in the loop for oversight and exception handling.
-
----
-
-## ResolveFlow AI — Autopilot Asia 2026, Round 2
+**Governed autonomy for the IT service desk.** Autopilot Asia Hackathon 2026, Round 2.
 
 A service desk that runs itself, but only as far as it is allowed to. Every
 action an Operator proposes is checked against a policy **before** it runs, and
@@ -401,3 +395,7 @@ AutoPilot-Template/
 | **Auth** | NextAuth.js + JWT | Authentication (bypass-able) |
 | **UI** | Tailwind CSS + Framer Motion | Styling + animations |
 | **Containers** | Docker + Docker Compose | Development environment |
+
+---
+
+<sub>Built on the AutoPilot Template starter kit for the AutoPilot Hackathon.</sub>

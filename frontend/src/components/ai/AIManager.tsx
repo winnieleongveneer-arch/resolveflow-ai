@@ -241,7 +241,7 @@ export function AIManager() {
                         id="ai-manager-title"
                         className="text-xl font-semibold text-brand-navy"
                       >
-                        AutoPilot AI
+                        ResolveFlow AI
                       </h2>
                       <p 
                         id="ai-manager-description"

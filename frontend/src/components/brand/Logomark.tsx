@@ -29,7 +29,7 @@ export function Logomark({
   return (
     <Image
       src={src}
-      alt='AutoPilot'
+      alt='ResolveFlow AI'
       width={size}
       height={size}
       className={cn('shrink-0', className)}
