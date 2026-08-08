@@ -382,6 +382,18 @@ def append_run_event(
     if run is None:
         raise HTTPException(status_code=404, detail="Run not found")
 
+    # An Operator executing inside Auto knows its own workflow run id — Auto
+    # puts it in the cell's globals as `workflow_run_id`. Recording it here is
+    # the only way this system can point at the Auto execution behind a case,
+    # because Auto's execute endpoint has never accepted a call from us.
+    #
+    # Written once and never overwritten: the first Operator to report it owns
+    # it. A later step reporting a different id is describing a different
+    # execution, and quietly replacing the first would make the trail lie.
+    reported = (payload.payload or {}).get("auto_run_id")
+    if reported and not run.auto_run_id:
+        run.auto_run_id = str(reported)[:200]
+
     event = OperatorEvent(
         run_id=run_id,
         operator_name=payload.operator_name,

@@ -310,20 +310,34 @@ def _auto_execution_failing(db: Session) -> Optional[str]:
     )
     if not failures:
         return None
-    with_id = (
+    # Deliberately NOT "any run carries an Auto run id". Operators now report
+    # their own run id from inside Auto, so that count says we can name an
+    # execution - not that our outbound call works. Only a run this Command
+    # Center actually launched proves the endpoint is back, and that is what
+    # trigger_source records.
+    launched_by_us = (
         db.query(WorkflowRun)
-        .filter(WorkflowRun.auto_run_id.isnot(None))
+        .filter(WorkflowRun.auto_run_id.isnot(None),
+                WorkflowRun.trigger_source.notin_(["supervisor", "manual",
+                                                   "swap_drill", "command_center"]))
         .count()
     )
-    if with_id:
-        # Something has executed successfully since; do not keep punishing it.
+    if launched_by_us:
         return None
     total = db.query(WorkflowRun).count()
+    # Be precise about WHAT is degraded. Auto executes workflows perfectly well
+    # - the Supervisor ran four steps through it today. What fails is one
+    # direction: this Command Center calling Auto's execute endpoint from
+    # outside. Saying "execute has never succeeded" without that distinction
+    # reads as "the platform is broken", which is not what we observed.
     return (
-        "Authenticated reads succeed (GET /api/v1/workflows). "
-        "POST /api/v1/workflow-runs/execute has never succeeded: "
-        f"{failures} invocation failure(s) recorded and 0 of {total} runs carry "
-        "an Auto run id. Operators are triggered from the Auto UI instead."
+        "Reads succeed (GET /api/v1/workflows) and Auto executes workflows "
+        "normally when they are started from its own UI. What fails is "
+        "outbound invocation: POST /api/v1/workflow-runs/execute returns "
+        f"HTTP 500 for every payload shape tried - {failures} failure(s) "
+        f"recorded, and 0 of {total} runs carry an Auto run id. Operators are "
+        "started from the Auto UI instead, which affects how a run begins, "
+        "not what it does."
     )
 
 
