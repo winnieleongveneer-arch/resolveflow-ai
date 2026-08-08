@@ -1,6 +1,6 @@
 # app/models/service_desk.py
 """
-ResolveFlow NEXUS — Service Desk Command Center models.
+ResolveFlow AI — Service Desk Command Center models.
 
 Six P0 tables that prove the governed path:
 

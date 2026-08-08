@@ -27,7 +27,7 @@ __all__ = [
     "audit_router",
     "items_router",
     "examples_router",
-    # ResolveFlow NEXUS
+    # ResolveFlow AI
     "policies_router",
     "policy_evaluations_router",
     "runs_router",

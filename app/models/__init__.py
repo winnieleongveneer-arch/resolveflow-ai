@@ -27,7 +27,7 @@ __all__ = [
     "AuditLog",
     "AuditCategory",
     "AuditSeverity",
-    # ResolveFlow NEXUS — service desk
+    # ResolveFlow AI — service desk
     "WorkflowRun",
     "OperatorEvent",
     "PolicyDefinition",

@@ -56,7 +56,7 @@
               },
               {
                 "name": "command_center_url",
-                "description": "Public base URL of the ResolveFlow NEXUS Command Center.",
+                "description": "Public base URL of the ResolveFlow AI Command Center.",
                 "type": "url",
                 "label": "Command Center URL",
                 "required": true,

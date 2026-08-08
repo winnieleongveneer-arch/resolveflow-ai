@@ -164,7 +164,7 @@ api_router.include_router(items_router)
 api_router.include_router(examples_router)
 
 # -----------------------------------------------------------------------
-# ResolveFlow NEXUS — Service Desk Command Center
+# ResolveFlow AI — Service Desk Command Center
 # -----------------------------------------------------------------------
 # AI Policies engine: rules evaluated BEFORE an external action executes.
 api_router.include_router(policies_router)

@@ -1,4 +1,4 @@
-"""Add ResolveFlow NEXUS service desk tables
+"""Add ResolveFlow AI service desk tables
 
 Creates the six P0 tables plus policy_versions, and seeds the
 Major Incident Declaration policy so a clean clone comes up with a

@@ -1,5 +1,5 @@
 -- ============================================================
--- ResolveFlow NEXUS — bring Supabase up to the Round 2 dataset
+-- ResolveFlow AI — bring Supabase up to the Round 2 dataset
 -- ============================================================
 -- Paste this whole file into the Supabase SQL Editor and Run.
 -- It is idempotent: safe to run more than once.

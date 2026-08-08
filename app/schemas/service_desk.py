@@ -1,5 +1,5 @@
 # app/schemas/service_desk.py
-"""Pydantic schemas for the ResolveFlow NEXUS service desk API."""
+"""Pydantic schemas for the ResolveFlow AI service desk API."""
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional

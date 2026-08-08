@@ -1,6 +1,6 @@
 # app/services/policy_engine.py
 """
-ResolveFlow NEXUS — Policy Engine.
+ResolveFlow AI — Policy Engine.
 
 The autonomy envelope. Every external side effect must pass through here
 BEFORE it executes, and every evaluation is persisted.

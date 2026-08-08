@@ -225,7 +225,7 @@ record("Not hardcoded to a handful of rows",
 
 # ---------------------------------------------------------------- report
 print("\n" + "=" * 74)
-print("  RESOLVEFLOW NEXUS — READINESS")
+print("  RESOLVEFLOW AI — READINESS")
 print("=" * 74)
 counts = collections.Counter(s for _, s, _, _ in results)
 for gate, status, summary, evidence in results:

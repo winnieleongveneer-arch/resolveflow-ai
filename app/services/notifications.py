@@ -94,7 +94,7 @@ def build_escalation_blocks(
                     {
                         "type": "mrkdwn",
                         "text": (
-                            f"ResolveFlow NEXUS · Workbench item `{item_id}` · "
+                            f"ResolveFlow AI · Workbench item `{item_id}` · "
                             "no action is taken until a human decides"
                         ),
                     }

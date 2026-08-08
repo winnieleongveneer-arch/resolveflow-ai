@@ -6,7 +6,7 @@ Build an intelligent, multi-agent command center that automates business process
 
 ---
 
-## ResolveFlow NEXUS — Autopilot Asia 2026, Round 2
+## ResolveFlow AI — Autopilot Asia 2026, Round 2
 
 A service desk that runs itself, but only as far as it is allowed to. Every
 action an Operator proposes is checked against a policy **before** it runs, and

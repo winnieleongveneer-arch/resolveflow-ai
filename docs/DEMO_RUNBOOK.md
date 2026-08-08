@@ -1,4 +1,4 @@
-# ResolveFlow NEXUS — Demo Runbook
+# ResolveFlow AI — Demo Runbook
 
 **Team Byte Me · Customer Support track · Finals 9 Aug 2026, Kuala Lumpur**
 Slot: 10 minutes — target **8 minutes** of demo, leaving 2 for questions.
@@ -203,6 +203,6 @@ Close on the number:
 
 ## The one line to land
 
-> "ResolveFlow NEXUS does not just resolve tickets. It refuses to act when it
+> "ResolveFlow AI does not just resolve tickets. It refuses to act when it
 > should not, tells you exactly why, and lets you change the rules without
 > changing the code."
