@@ -222,6 +222,10 @@ def _check_supervity_auto() -> Dict[str, Any]:
             "credentials_configured": True,
             "latency_ms": result.get("latency_ms"),
             "error": None,
+            # The probe just performed a real authenticated GET. Saying so is
+            # not flattery; refusing to say so made the card claim reads
+            # succeed while reporting "Last read: Never" directly above it.
+            "read_ok": True,
         }
     return {
         "status": IntegrationStatus.UNHEALTHY,
@@ -287,6 +291,42 @@ CHECKS = {
 }
 
 
+def _auto_execution_failing(db: Session) -> Optional[str]:
+    """
+    Is Auto's execute endpoint failing, according to what we have recorded?
+
+    Returns a sentence to show, or None. This reads the run history rather than
+    asking Auto again: an Operator that could not be invoked is a fact already
+    on file, and a fact outranks a fresh guess.
+    """
+    try:
+        from ..models.service_desk import OperatorEvent, WorkflowRun
+    except Exception:
+        return None
+    failures = (
+        db.query(OperatorEvent)
+        .filter(OperatorEvent.event_type == "AUTO_INVOKE_FAILED")
+        .count()
+    )
+    if not failures:
+        return None
+    with_id = (
+        db.query(WorkflowRun)
+        .filter(WorkflowRun.auto_run_id.isnot(None))
+        .count()
+    )
+    if with_id:
+        # Something has executed successfully since; do not keep punishing it.
+        return None
+    total = db.query(WorkflowRun).count()
+    return (
+        "Authenticated reads succeed (GET /api/v1/workflows). "
+        "POST /api/v1/workflow-runs/execute has never succeeded: "
+        f"{failures} invocation failure(s) recorded and 0 of {total} runs carry "
+        "an Auto run id. Operators are triggered from the Auto UI instead."
+    )
+
+
 def run_health_check(db: Session, key: str) -> IntegrationHealth:
     """Run one real health check and persist the result."""
     ensure_registered(db)
@@ -307,14 +347,35 @@ def run_health_check(db: Session, key: str) -> IntegrationHealth:
     row.latency_ms = result.get("latency_ms")
     row.latest_error = result.get("error")
 
-    # Never downgrade a demonstrated success to DEGRADED just because the
-    # cheap probe is inconclusive.
     proposed = result["status"]
-    if proposed == IntegrationStatus.DEGRADED and (
+    if result.get("read_ok"):
+        row.last_successful_read = _now()
+
+    # An observed success outranks an inconclusive probe. Outlook is the case
+    # that matters: the Command Center holds no token for it, so its probe can
+    # only ever answer UNKNOWN - but an Operator has reported a delivered
+    # message through it, and that is real evidence. Before this covered
+    # UNKNOWN as well as DEGRADED, a health check would overwrite a status the
+    # integration had actually earned, and quietly drop a met requirement.
+    inconclusive = (IntegrationStatus.DEGRADED, IntegrationStatus.UNKNOWN)
+    if proposed in inconclusive and (
         row.last_successful_read or row.last_successful_write
     ):
         proposed = IntegrationStatus.HEALTHY
         row.latest_error = None
+
+    # Reads working is not the same as the platform working. Auto answers
+    # GET /api/v1/workflows and fails POST /workflow-runs/execute, so a probe
+    # that only reads would report HEALTHY and a refresh would quietly turn the
+    # badge green while execution is still broken. Ask the record instead: if
+    # runs are on file that could not invoke Auto, this is DEGRADED and the
+    # reason is stated. The evidence, not the probe, decides.
+    if key == "supervity_auto" and proposed == IntegrationStatus.HEALTHY:
+        detail = _auto_execution_failing(db)
+        if detail:
+            proposed = IntegrationStatus.DEGRADED
+            row.latest_error = detail
+
     row.status = proposed
 
     db.commit()

@@ -57,14 +57,20 @@ def _insight(
     action_label: str,
     action_href: str,
 ) -> Dict[str, Any]:
+    # One chip per CASE, not per run. Three failed runs across two tickets is
+    # three runs and two cases; listing ITSM-2180 twice overstated the spread
+    # and, because the list is rendered by key, broke the page it appeared on.
+    # Order is preserved so the first occurrence still reads first.
+    seen: set = set()
+    distinct = [c for c in affected if not (c in seen or seen.add(c))]
     return {
         "id": key,
         "title": title,
         "type": type_,
         "severity": severity,
         "evidence": evidence,
-        "affected_cases": affected,
-        "affected_count": len(affected),
+        "affected_cases": distinct,
+        "affected_count": len(distinct),
         "detected_at": datetime.now(timezone.utc).isoformat(),
         "business_implication": implication,
         "recommended_action": recommendation,

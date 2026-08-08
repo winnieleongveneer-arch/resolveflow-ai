@@ -190,9 +190,11 @@ export default function InsightsPage() {
 
                   {insight.affected_cases.length > 0 && (
                     <div className='flex flex-wrap gap-1.5'>
-                      {insight.affected_cases.slice(0, 12).map((c) => (
+                      {/* Cases are deduped in the API. The index is in the key as
+                        well so a duplicate can never take this page down. */}
+                      {insight.affected_cases.slice(0, 12).map((c, i) => (
                         <span
-                          key={c}
+                          key={`${c}-${i}`}
                           className='rounded-md bg-slate-100 px-2 py-0.5 font-mono text-[11px] text-slate-700'
                         >
                           {c}
